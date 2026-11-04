@@ -10,6 +10,8 @@ import {
   createIssue,
   getRepoTree,
   getRepoDetails,
+  importRepo,
+  getRepoInsights,
 } from '../controllers/githubController.js'
 import { optionalAuth } from '../middleware/auth.js'
 
@@ -25,6 +27,8 @@ router.post('/create-pr', optionalAuth, createPR)
 router.get('/commits/:repo', optionalAuth, listCommits)
 router.get('/issues/:repo', optionalAuth, listIssues)
 router.post('/issues/:repo', optionalAuth, createIssue)
+router.post('/import-repo', optionalAuth, importRepo)
+router.get('/insights/:repo', optionalAuth, getRepoInsights)
 
 export default router
 

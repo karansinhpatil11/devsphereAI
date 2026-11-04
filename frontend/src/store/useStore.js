@@ -160,7 +160,12 @@ const useStore = create((set, get) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
   setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),
   setSidebarSection: (section) => set({ sidebarSection: section }),
-  setSelectedFile: (file) => set({ selectedFile: file }),
+  selectedDiffFile: 'AppController.java',
+  setSelectedDiffFile: (name) => set({ selectedDiffFile: name }),
+  setSelectedFile: (file) => set({
+    selectedFile: file,
+    selectedDiffFile: file?.name || 'AppController.java',
+  }),
   setChatInput: (input) => set({ chatInput: input }),
 
   activeRepoName: 'core-service',

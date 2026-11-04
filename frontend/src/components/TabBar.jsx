@@ -9,7 +9,7 @@ function TabIcon({ tab }) {
 }
 
 export default function TabBar() {
-  const { openTabs, activeEditorTab, setActiveEditorTab, closeTab } = useStore()
+  const { openTabs, activeEditorTab, setActiveEditorTab, closeTab, setSelectedDiffFile } = useStore()
 
   return (
     <div className="flex items-stretch bg-ide-sidebar border-b border-ide-border overflow-x-auto shrink-0" style={{ height: '35px' }}>
@@ -18,7 +18,12 @@ export default function TabBar() {
         return (
           <div
             key={tab.id}
-            onClick={() => setActiveEditorTab(tab.id)}
+            onClick={() => {
+              setActiveEditorTab(tab.id)
+              if (tab.name && (tab.name.endsWith('.java') || tab.name.endsWith('.yml') || tab.name.endsWith('.xml'))) {
+                setSelectedDiffFile(tab.name)
+              }
+            }}
             className={`
               flex items-center gap-2 px-4 text-xs cursor-pointer whitespace-nowrap border-r border-ide-border shrink-0 transition-all group relative
               ${isActive

@@ -28,7 +28,7 @@ function FileIcon({ name }) {
 
 // ── Tree Node ─────────────────────────────────────────
 function TreeNode({ node, depth = 0 }) {
-  const { toggleFolder, setSelectedFile, selectedFile, openTabs, setActiveEditorTab } = useStore()
+  const { toggleFolder, setSelectedFile, selectedFile, openTabs, setActiveEditorTab, setSelectedDiffFile } = useStore()
   const isFolder = node.type === 'folder' || (node.children !== undefined)
   const isFile = node.type === 'file'
   const isSelected = selectedFile?.id === node.id
@@ -37,6 +37,7 @@ function TreeNode({ node, depth = 0 }) {
     if (isFolder) toggleFolder(node.id)
     if (isFile) {
       setSelectedFile(node)
+      setSelectedDiffFile?.(node.name)
       // Open or switch to editor tab
       const tabId = node.name.replace(/\.[^/.]+$/, '')
       const exists = openTabs.some((t) => t.id === tabId)
@@ -238,6 +239,9 @@ export default function Sidebar() {
   const [repoError, setRepoError] = useState('')
   const [selectedPRRepo, setSelectedPRRepo] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importUrl, setImportUrl] = useState('')
+  const [importing, setImporting] = useState(false)
   const [showRepoMenu, setShowRepoMenu] = useState(false)
   const [newFileName, setNewFileName] = useState('')
 
@@ -252,6 +256,23 @@ export default function Sidebar() {
       setRepoError(e.response?.data?.error || '')
     } finally {
       setLoadingRepos(false)
+    }
+  }
+
+  const handleImportRepo = async (e) => {
+    e.preventDefault()
+    if (!importUrl.trim()) return
+    setImporting(true)
+    try {
+      const res = await githubAPI.importRepo({ url: importUrl.trim() })
+      await fetchRepos()
+      setImportUrl('')
+      setShowImportModal(false)
+      setActiveRepoName(res.data.name)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -287,24 +308,40 @@ export default function Sidebar() {
 
   const handleAddFile = (e) => {
     e.preventDefault()
-    if (!newFileName.trim()) return
+    const trimmed = newFileName.trim()
+    if (!trimmed) return
+    const tabId = trimmed.replace(/\.[^/.]+$/, '')
     const fileNode = {
       id: Date.now(),
-      name: newFileName.trim(),
+      name: trimmed,
       type: 'file',
-      lang: newFileName.endsWith('.java') ? 'java' : 'js',
+      lang: trimmed.endsWith('.java') ? 'java' : trimmed.endsWith('.js') ? 'js' : 'text',
     }
     // Add file to core-service
     const updated = repositories.map((r) => {
       if (r.name === 'core-service') {
         return {
           ...r,
+          expanded: true,
           children: [...(r.children || []), fileNode],
         }
       }
       return r
     })
-    useStore.setState({ repositories: updated })
+
+    // Automatically open tab and switch to it
+    const currentOpenTabs = useStore.getState().openTabs
+    const exists = currentOpenTabs.some((t) => t.id === tabId)
+    const newTabs = exists
+      ? currentOpenTabs
+      : [...currentOpenTabs, { id: tabId, name: trimmed, icon: '📄', closable: true }]
+
+    useStore.setState({
+      repositories: updated,
+      openTabs: newTabs,
+      activeEditorTab: tabId,
+      selectedFile: fileNode,
+    })
     setNewFileName('')
     setShowAddModal(false)
   }
@@ -430,6 +467,16 @@ export default function Sidebar() {
                   <Plus size={12} className="text-ide-accent shrink-0" />
                   <span>New File / Module</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setShowImportModal(true)
+                    setShowRepoMenu(false)
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-ide-text hover:text-ide-text-bright hover:bg-ide-border rounded-lg transition-colors cursor-pointer text-left text-xs"
+                >
+                  <GitBranch size={12} className="text-emerald-400 shrink-0" />
+                  <span>Import Repository</span>
+                </button>
               </div>
             </div>
           )}
@@ -461,6 +508,37 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+
+      {/* Import Repo inline input */}
+      {showImportModal && (
+        <form onSubmit={handleImportRepo} className="p-2 bg-ide-bg border-b border-ide-border flex flex-col gap-1.5 shrink-0">
+          <span className="text-[10px] text-emerald-400 font-medium">Import GitHub Repository:</span>
+          <input
+            type="text"
+            placeholder="e.g. https://github.com/org/repo"
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            className="w-full bg-ide-panel border border-ide-border rounded px-2 py-1 text-xs text-ide-text-bright outline-none focus:border-emerald-500"
+            autoFocus
+          />
+          <div className="flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowImportModal(false)}
+              className="px-2 py-0.5 text-[10px] text-ide-text/50 hover:text-ide-text cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={importing}
+              className="px-2 py-0.5 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium cursor-pointer"
+            >
+              {importing ? 'Importing...' : 'Import'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Add File inline input */}
       {showAddModal && (

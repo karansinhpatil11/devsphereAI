@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { docAPI } from '../services/api'
-import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft } from 'lucide-react'
+import { docAPI, generateDocs } from '../services/api'
+import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft, Sparkles, Loader2 } from 'lucide-react'
 
 export default function DocPanel() {
   const [docs, setDocs] = useState([])
@@ -8,6 +8,8 @@ export default function DocPanel() {
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [showAiMenu, setShowAiMenu] = useState(false)
+  const [generatingAi, setGeneratingAi] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newCategory, setNewCategory] = useState('General')
   const [newContent, setNewContent] = useState('')
@@ -27,6 +29,30 @@ export default function DocPanel() {
   useEffect(() => {
     fetchDocs(search)
   }, [search])
+
+  const handleAiGenerate = async (docType) => {
+    setGeneratingAi(true)
+    setShowAiMenu(false)
+    try {
+      const res = await generateDocs({
+        docType,
+        saveToDocs: true,
+      })
+      await fetchDocs()
+      if (res.data) {
+        setSelectedDoc({
+          title: res.data.title,
+          category: res.data.category,
+          content: res.data.content,
+          tags: res.data.tags || [],
+        })
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setGeneratingAi(false)
+    }
+  }
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -92,13 +118,57 @@ export default function DocPanel() {
           <span className="text-[10px] text-ide-text/40 font-semibold uppercase tracking-wider">
             Documentation ({docs.length})
           </span>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="flex items-center gap-1 text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
-          >
-            <Plus size={13} />
-            <span>New Doc</span>
-          </button>
+          <div className="flex items-center gap-1.5 relative">
+            <button
+              onClick={() => setShowAiMenu(!showAiMenu)}
+              disabled={generatingAi}
+              className="flex items-center gap-1 text-[11px] text-ide-purple hover:text-ide-purple/80 transition-colors cursor-pointer disabled:opacity-50"
+              title="Generate with Gemini"
+            >
+              {generatingAi ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              <span>AI Generate</span>
+            </button>
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="flex items-center gap-1 text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
+            >
+              <Plus size={13} />
+              <span>New</span>
+            </button>
+
+            {/* AI Generator Dropdown Menu */}
+            {showAiMenu && (
+              <div className="absolute top-full right-0 mt-1 w-48 bg-ide-panel border border-ide-border rounded-xl shadow-2xl z-50 p-1.5 text-xs slide-in">
+                <div className="px-2 py-1 text-[9px] text-ide-text/40 font-semibold uppercase tracking-wider border-b border-ide-border/50 mb-1">
+                  Auto-Generate with Gemini
+                </div>
+                <button
+                  onClick={() => handleAiGenerate('readme')}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-ide-text hover:text-ide-text-bright hover:bg-ide-border text-left cursor-pointer"
+                >
+                  <span>📘 README.md</span>
+                </button>
+                <button
+                  onClick={() => handleAiGenerate('api_docs')}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-ide-text hover:text-ide-text-bright hover:bg-ide-border text-left cursor-pointer"
+                >
+                  <span>📑 REST API Docs</span>
+                </button>
+                <button
+                  onClick={() => handleAiGenerate('installation')}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-ide-text hover:text-ide-text-bright hover:bg-ide-border text-left cursor-pointer"
+                >
+                  <span>⚙️ Installation Guide</span>
+                </button>
+                <button
+                  onClick={() => handleAiGenerate('summary')}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-ide-text hover:text-ide-text-bright hover:bg-ide-border text-left cursor-pointer"
+                >
+                  <span>📊 Project Summary</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="relative flex items-center">

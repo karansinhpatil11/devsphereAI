@@ -95,3 +95,123 @@ export async function generatePR(req, res) {
     return res.status(500).json({ error: 'Generation failed', details: err.message })
   }
 }
+
+/**
+ * POST /api/ai/coding-assist
+ * Body: { action, code, language, targetLanguage, prompt, model }
+ */
+export async function handleCodingAssist(req, res) {
+  try {
+    const { action, code, language, targetLanguage, prompt, model } = req.body
+    if (!action) return res.status(400).json({ error: 'action is required' })
+
+    const user = req.user?.id || req.user?.email || 'DevUser'
+    const { codingAssistant } = await import('../services/aiService.js')
+    const result = await codingAssistant({
+      action,
+      code,
+      language,
+      targetLanguage,
+      prompt,
+      model,
+      user,
+    })
+
+    return res.json(result)
+  } catch (err) {
+    console.error('[Coding Assist Error]', err.message)
+    return res.status(500).json({ error: 'Coding assistance failed', details: err.message })
+  }
+}
+
+/**
+ * POST /api/ai/smart-bug-scan
+ * Body: { code, language, filename, model }
+ */
+export async function handleSmartBugScan(req, res) {
+  try {
+    const { code, language, filename, model } = req.body
+    if (!code) return res.status(400).json({ error: 'code is required for scan' })
+
+    const user = req.user?.id || req.user?.email || 'DevUser'
+    const { smartBugScan } = await import('../services/aiService.js')
+    const result = await smartBugScan({
+      code,
+      language: language || 'java',
+      filename: filename || 'AppService.java',
+      model,
+      user,
+    })
+
+    return res.json(result)
+  } catch (err) {
+    console.error('[Smart Bug Scan Error]', err.message)
+    return res.status(500).json({ error: 'Smart bug scan failed', details: err.message })
+  }
+}
+
+/**
+ * POST /api/ai/generate-docs
+ * Body: { docType, code, projectInfo, saveToDocs, model }
+ */
+export async function handleGenerateDocs(req, res) {
+  try {
+    const { docType = 'readme', code, projectInfo, saveToDocs = true, model } = req.body
+    const user = req.user?.id || req.user?.email || 'DevUser'
+
+    const { generateDocumentation } = await import('../services/aiService.js')
+    const docResult = await generateDocumentation({
+      docType,
+      code,
+      projectInfo,
+      model,
+      user,
+    })
+
+    // If requested, save directly to the documentation store & MongoDB
+    if (saveToDocs) {
+      try {
+        const { createDoc } = await import('../models/docStore.js')
+        const savedDoc = createDoc({
+          title: docResult.title,
+          category: docResult.category,
+          content: docResult.content,
+          tags: docResult.tags,
+        })
+        docResult.savedId = savedDoc.id
+      } catch (saveErr) {
+        console.warn('[Doc Auto-Save Warning]', saveErr.message)
+      }
+    }
+
+    return res.json(docResult)
+  } catch (err) {
+    console.error('[Generate Docs Error]', err.message)
+    return res.status(500).json({ error: 'Documentation generation failed', details: err.message })
+  }
+}
+
+/**
+ * POST /api/ai/code-review
+ * Body: { diff, prTitle, model }
+ */
+export async function handleCodeReview(req, res) {
+  try {
+    const { diff, prTitle, model } = req.body
+    if (!diff) return res.status(400).json({ error: 'diff is required for code review' })
+
+    const user = req.user?.id || req.user?.email || 'DevUser'
+    const { reviewCodePR } = await import('../services/aiService.js')
+    const result = await reviewCodePR({
+      diff,
+      prTitle: prTitle || 'PR #452',
+      model,
+      user,
+    })
+
+    return res.json(result)
+  } catch (err) {
+    console.error('[Code Review Error]', err.message)
+    return res.status(500).json({ error: 'Code review failed', details: err.message })
+  }
+}

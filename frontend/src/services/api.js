@@ -65,6 +65,18 @@ export const sendChatMessage = (message, history, model) => api.post('/ai/chat',
 export const analyzeDiff = (diff, model) => api.post('/ai/analyze-diff', { diff, model })
 export const generatePRDescription = (changes, model) => api.post('/ai/generate-pr-description', { changes, model })
 
+// 1. AI Coding Assistant
+export const codingAssist = (data) => api.post('/ai/coding-assist', data)
+
+// 4. Smart Bug Detector
+export const smartBugScan = (data) => api.post('/ai/smart-bug-scan', data)
+
+// 5. Documentation Generator
+export const generateDocs = (data) => api.post('/ai/generate-docs', data)
+
+// 2. AI Code Review
+export const reviewCodePR = (data) => api.post('/ai/code-review', data)
+
 export const githubAPI = {
   getRepositories: () => api.get('/github/repositories'),
   getRepository: (repo) => api.get(`/github/repository/${repo}`),
@@ -76,6 +88,8 @@ export const githubAPI = {
   getIssues: (repo, state) => api.get(`/github/issues/${repo}?state=${state || 'open'}`),
   createIssue: (repo, data) => api.post(`/github/issues/${repo}`, data),
   createPR: (data) => api.post('/github/create-pr', data),
+  importRepo: (data) => api.post('/github/import-repo', data),
+  getInsights: (repo) => api.get(`/github/insights/${repo}`),
 }
 
 export const taskAPI = {

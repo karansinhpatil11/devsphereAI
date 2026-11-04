@@ -93,6 +93,17 @@ app.use((req, res) => res.status(404).json({ error: `Route ${req.method} ${req.p
 app.use((err, req, res, next) => { console.error('[Server Error]', err); res.status(500).json({ error: 'Internal server error', message: err.message }) })
 
 const PORT = process.env.PORT || 5000
+
+httpServer.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n⚠️  Port ${PORT} is currently in use by another process.`)
+    console.error(`   To free port ${PORT}, run in PowerShell:`)
+    console.error(`   Get-Process -Id (Get-NetTCPConnection -LocalPort ${PORT} -ErrorAction SilentlyContinue).OwningProcess | Stop-Process -Force\n`)
+  } else {
+    console.error('[Server Listen Error]', err)
+  }
+})
+
 httpServer.listen(PORT, () => {
   const hasKey = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('your_')))
   console.log(`\n🚀 AI Developer Assistant Backend`)

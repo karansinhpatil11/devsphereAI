@@ -8,21 +8,13 @@ import useStore from '../store/useStore'
 import { Globe, RefreshCw } from 'lucide-react'
 
 import CodeEditor from '../components/CodeEditor'
+import Terminal from '../components/Terminal'
 
 function EditorArea() {
   const { activeEditorTab } = useStore()
 
   if (activeEditorTab === 'terminal') {
-    return (
-      <div className="flex-1 bg-ide-bg p-4 font-mono text-xs text-ide-green overflow-auto">
-        <p className="text-ide-text/60 mb-2">─── Terminal ───────────────────────────</p>
-        <p><span className="text-ide-accent">user@dev</span>:<span className="text-ide-blue">~/core-service</span>$ git status</p>
-        <p className="mt-1 text-ide-text">On branch feature/fix-data-fetch</p>
-        <p className="text-ide-text">Changes not staged for commit:</p>
-        <p className="text-ide-red">  modified:   src/main/java/com/company/service/AppService.java</p>
-        <p className="mt-1"><span className="text-ide-accent">user@dev</span>:<span className="text-ide-blue">~/core-service</span>$ <span className="animate-pulse">█</span></p>
-      </div>
-    )
+    return <Terminal />
   }
 
   if (activeEditorTab === 'pr-452') {
@@ -34,7 +26,7 @@ function EditorArea() {
 }
 
 export default function IDELayout() {
-  const { setActiveEditorTab, openTabs } = useStore()
+  const { setActiveEditorTab, openTabs, activeEditorTab, activeRepoName } = useStore()
   const [fullscreen, setFullscreen] = React.useState(false)
 
   const handleRefresh = () => {
@@ -103,7 +95,13 @@ export default function IDELayout() {
         {/* URL / Workspace bar */}
         <div className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 flex-1 mx-6 max-w-sm">
           <Globe size={11} className="text-ide-text/50 shrink-0" />
-          <span className="text-xs text-ide-text/70 truncate">developer-studio://core-service/pr-452</span>
+          <span className="text-xs text-ide-text/70 truncate">
+            {activeEditorTab === 'pr-452'
+              ? `developer-studio://${activeRepoName || 'core-service'}/pr-452`
+              : activeEditorTab === 'terminal'
+              ? `developer-studio://${activeRepoName || 'core-service'}/terminal`
+              : `developer-studio://${activeRepoName || 'core-service'}/${activeEditorTab}`}
+          </span>
           <button
             onClick={handleRefresh}
             title="Reload IDE"

@@ -157,3 +157,42 @@ export async function getRepoDetails(req, res) {
   }
 }
 
+/**
+ * POST /api/github/import-repo
+ * Body: { url, name, description }
+ */
+export async function importRepo(req, res) {
+  try {
+    const url = req.body.url || req.body.repoUrl
+    const { name, description, owner } = req.body
+    if (!url && !name) {
+      return res.status(400).json({ error: 'Repository URL or Name is required' })
+    }
+    const imported = await githubService.importRepository({
+      url,
+      name,
+      description,
+      owner: owner || OWNER,
+    })
+    return res.status(201).json(imported)
+  } catch (err) {
+    console.error('[GitHub Import Repo Error]', err.message)
+    return res.status(500).json({ error: 'Failed to import repository', details: err.message })
+  }
+}
+
+/**
+ * GET /api/github/insights/:repo
+ */
+export async function getRepoInsights(req, res) {
+  try {
+    const { repo } = req.params
+    const { owner } = req.query
+    const insights = await githubService.getRepositoryInsights(owner || OWNER, repo)
+    return res.json(insights)
+  } catch (err) {
+    console.error('[GitHub Insights Error]', err.message)
+    return res.status(500).json({ error: 'Failed to fetch repository insights', details: err.message })
+  }
+}
+

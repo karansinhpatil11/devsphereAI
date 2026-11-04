@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authAPI } from '../services/api'
 import useAuthStore from '../store/authStore'
-import { Lock, Mail, User, ArrowRight, Bot, AlertCircle } from 'lucide-react'
+import { Lock, Mail, User, ArrowRight, Bot, AlertCircle, Github } from 'lucide-react'
 
 export default function SignupPage() {
   const navigate = useNavigate()
@@ -130,6 +130,20 @@ export default function SignupPage() {
             {loading ? 'Creating Account...' : 'Get Started'}
             <ArrowRight size={14} />
           </button>
+
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-ide-border/60"></div>
+            <span className="flex-shrink mx-3 text-[10px] text-ide-text/40 uppercase font-semibold">Or</span>
+            <div className="flex-grow border-t border-ide-border/60"></div>
+          </div>
+
+          <a
+            href="http://localhost:5000/api/auth/github"
+            className="w-full py-2 bg-ide-panel hover:bg-ide-border border border-ide-border rounded-xl text-xs text-ide-text-bright font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <Github size={14} />
+            <span>Continue with GitHub</span>
+          </a>
         </form>
 
         {/* Footer links */}
