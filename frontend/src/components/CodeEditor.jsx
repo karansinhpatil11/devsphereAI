@@ -1,257 +1,67 @@
-import React, { useState, useEffect } from 'react'
-import { Copy, Check, GitPullRequest, FileCode, Play, Sparkles } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import {
+  Copy,
+  Check,
+  FileCode,
+  Play,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Terminal as TerminalIcon,
+  X,
+} from 'lucide-react'
 import useStore from '../store/useStore'
-import { githubAPI } from '../services/api'
+import { githubAPI, compilerAPI } from '../services/api'
+import { fileCache, getOrCreateFile, detectLanguage, INITIAL_FILES } from '../store/fileStorage'
 
-export const REPO_FILES = {
-  'AppController.java': {
-    name: 'AppController.java',
-    path: 'src/main/java/com/company/service/AppController.java',
-    lang: 'java',
-    content: `package com.company.service;
-
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
-import java.util.Optional;
-
-@RestController
-@RequestMapping("/api/v1")
-public class AppController {
-
-    private final AppService appService;
-
-    public AppController(AppService appService) {
-        this.appService = appService;
-    }
-
-    @GetMapping("/data")
-    public ResponseEntity<Data> getData() {
-        Optional<Data> result = appService.getData();
-        return result
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    @GetMapping("/status")
-    public ResponseEntity<String> getStatus() {
-        return ResponseEntity.ok("Service is running smoothly (v1.0.0)");
-    }
-}`,
-  },
-  'AppService.java': {
-    name: 'AppService.java',
-    path: 'src/main/java/com/company/service/AppService.java',
-    lang: 'java',
-    content: `package com.company.service;
-
-import org.springframework.stereotype.Service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import java.util.Optional;
-
-@Service
-public class AppService {
-
-    private static final Logger logger = LoggerFactory.getLogger(AppService.class);
-    private final DataRepository repository;
-
-    public AppService(DataRepository repository) {
-        this.repository = repository;
-    }
-
-    /**
-     * Refactored in PR #452 to safely handle potential NullPointerExceptions
-     */
-    public Optional<Data> getData() {
-        try {
-            Data data = repository.fetchData();
-            return Optional.ofNullable(data);
-        } catch (Exception ex) {
-            logger.error("Failed to fetch data from repository: {}", ex.getMessage());
-            return Optional.empty();
-        }
-    }
-
-    public String checkSystemStatus() {
-        return "ACTIVE";
-    }
-}`,
-  },
-  'application.yml': {
-    name: 'application.yml',
-    path: 'src/main/resources/application.yml',
-    lang: 'yaml',
-    content: `server:
-  port: 8080
-  servlet:
-    context-path: /
-
-spring:
-  application:
-    name: core-service
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017/developer_assistant
-  cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=500,expireAfterAccess=300s
-
-logging:
-  level:
-    root: INFO
-    com.company.service: DEBUG
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics`,
-  },
-  'AppControllerTest.java': {
-    name: 'AppControllerTest.java',
-    path: 'src/test/java/com/company/service/AppControllerTest.java',
-    lang: 'java',
-    content: `package com.company.service;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
-import org.springframework.http.ResponseEntity;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-public class AppControllerTest {
-
-    private AppService appService;
-    private AppController appController;
-
-    @BeforeEach
-    void setUp() {
-        appService = mock(AppService.class);
-        appController = new AppController(appService);
-    }
-
-    @Test
-    void testGetDataReturnsOk() {
-        Data mockData = new Data("test-data");
-        when(appService.getData()).thenReturn(Optional.of(mockData));
-
-        ResponseEntity<Data> response = appController.getData();
-        assertEquals(200, response.getStatusCodeValue());
-        assertNotNull(response.getBody());
-    }
-
-    @Test
-    void testGetDataReturnsNotFound() {
-        when(appService.getData()).thenReturn(Optional.empty());
-
-        ResponseEntity<Data> response = appController.getData();
-        assertEquals(404, response.getStatusCodeValue());
-    }
-}`,
-  },
-  'pom.xml': {
-    name: 'pom.xml',
-    path: 'pom.xml',
-    lang: 'xml',
-    content: `<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
-        <relativePath/>
-    </parent>
-    <groupId>com.company</groupId>
-    <artifactId>core-service</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>core-service</name>
-    <description>Core Service with AI Developer Assistant integration</description>
-
-    <properties>
-        <java.version>17</java.version>
-    </properties>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-</project>`,
-  },
-}
-
-// In-memory cache for edits across tab switching
-export const fileCache = { ...REPO_FILES }
+export const REPO_FILES = INITIAL_FILES
+export { fileCache }
 
 export default function CodeEditor({ tabId }) {
-  const { setActiveEditorTab, setSelectedDiffFile, activeRepoName } = useStore()
+  const { setActiveEditorTab, activeRepoName, addChatMessage, lastFileAction } = useStore()
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Resolve matching file key
+  // Compiler state for active editor
+  const [isRunning, setIsRunning] = useState(false)
+  const textareaRef = useRef(null)
+
+  // Resolve matching file key dynamically
   const resolveFileKey = (id) => {
-    if (!id) return 'AppController.java'
+    if (!id || id === 'welcome') return 'main.py'
     if (fileCache[id]) return id
+    if (fileCache[`${id}.py`]) return `${id}.py`
+    if (fileCache[`${id}.js`]) return `${id}.js`
     if (fileCache[`${id}.java`]) return `${id}.java`
-    if (fileCache[`${id}.yml`]) return `${id}.yml`
-    if (fileCache[`${id}.xml`]) return `${id}.xml`
-    const found = Object.keys(fileCache).find((k) => k.toLowerCase().startsWith(id.toLowerCase()))
+    const found = Object.keys(fileCache).find((k) => k.toLowerCase() === id.toLowerCase() || k.toLowerCase().startsWith(id.toLowerCase()))
     return found || id
   }
 
   const fileKey = resolveFileKey(tabId)
-  const currentFile = fileCache[fileKey] || {
-    name: fileKey.includes('.') ? fileKey : `${fileKey}.java`,
-    path: `src/main/java/com/company/service/${fileKey.includes('.') ? fileKey : `${fileKey}.java`}`,
-    lang: fileKey.endsWith('.yml') ? 'yaml' : fileKey.endsWith('.xml') ? 'xml' : 'java',
-    content: `package com.company.service;\n\npublic class ${fileKey.replace(/\.[^.]+$/, '')} {\n    // Code for ${fileKey}\n}`,
-  }
+  const currentFile = fileCache[fileKey] || getOrCreateFile(fileKey)
 
   const [code, setCode] = useState(currentFile.content)
 
+  // Sync editor content on tab switch
   useEffect(() => {
     const key = resolveFileKey(tabId)
-    if (fileCache[key]) {
-      setCode(fileCache[key].content)
-    } else {
-      // Attempt fetching from backend API
-      setIsLoading(true)
-      githubAPI
-        .getFile(activeRepoName || 'core-service', tabId)
-        .then((res) => {
-          if (res.data?.content) {
-            fileCache[key] = {
-              name: tabId,
-              path: res.data.path || tabId,
-              lang: 'java',
-              content: res.data.content,
-            }
-            setCode(res.data.content)
-          }
-        })
-        .catch(() => {
-          setCode(currentFile.content)
-        })
-        .finally(() => setIsLoading(false))
-    }
+    const file = fileCache[key] || getOrCreateFile(key)
+    setCode(file.content)
   }, [tabId, activeRepoName])
+
+  // Sync editor content on AI or external file update
+  useEffect(() => {
+    if (lastFileAction && (lastFileAction.filename === currentFile.name || lastFileAction.filename === fileKey)) {
+      const file = fileCache[currentFile.name] || fileCache[fileKey]
+      if (file) {
+        setCode(file.content)
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      }
+    }
+  }, [lastFileAction, currentFile.name, fileKey])
 
   const handleCodeChange = (e) => {
     const val = e.target.value
@@ -278,9 +88,64 @@ export default function CodeEditor({ tabId }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleCompareDiff = () => {
-    setSelectedDiffFile(currentFile.name)
-    setActiveEditorTab('pr-452')
+  // Compile & execute the current file — output goes to bottom panel
+  const handleRunCode = async () => {
+    if (isRunning) return
+    setIsRunning(true)
+
+    // Send "running" status to the bottom panel output
+    if (window.__ideSetCompilerOutput) {
+      window.__ideSetCompilerOutput({
+        status: 'RUNNING',
+        stdout: '',
+        stderr: '',
+        exitCode: null,
+      })
+    }
+
+    try {
+      const res = await compilerAPI.execute({
+        language: currentFile.lang || 'java',
+        code,
+      })
+      if (window.__ideSetCompilerOutput) {
+        window.__ideSetCompilerOutput(res.data)
+      }
+    } catch (err) {
+      if (window.__ideSetCompilerOutput) {
+        window.__ideSetCompilerOutput({
+          success: false,
+          status: 'RUNTIME_ERROR',
+          stdout: '',
+          stderr: err.response?.data?.details || err.response?.data?.error || err.message,
+          exitCode: 1,
+          executionTimeMs: 0,
+        })
+      }
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  // Keyboard shortcut listener on editor textarea
+  const handleKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const start = e.target.selectionStart
+      const end = e.target.selectionEnd
+      const val = e.target.value
+      const updated = val.substring(0, start) + '    ' + val.substring(end)
+      setCode(updated)
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = start + 4
+          textareaRef.current.selectionEnd = start + 4
+        }
+      }, 0)
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      handleRunCode()
+    }
   }
 
   return (
@@ -302,20 +167,34 @@ export default function CodeEditor({ tabId }) {
               <Check size={10} /> Saved
             </span>
           )}
+          {lastFileAction?.by === 'ai' && (lastFileAction.filename === currentFile.name) && (
+            <span className="text-[10px] text-ide-purple bg-ide-purple/15 border border-ide-purple/30 px-1.5 py-0.5 rounded flex items-center gap-1 font-semibold animate-pulse">
+              <Sparkles size={10} /> AI Modified
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Quick jump to PR Diff for this file */}
-          {(currentFile.name === 'AppController.java' || currentFile.name === 'AppService.java') && (
-            <button
-              onClick={handleCompareDiff}
-              title="Compare in PR #452 Diff"
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-ide-purple/15 text-ide-purple hover:bg-ide-purple/25 border border-ide-purple/30 transition-colors cursor-pointer text-[11px]"
-            >
-              <GitPullRequest size={11} />
-              <span>Compare Diff</span>
-            </button>
-          )}
+          {/* Run / Compile button */}
+          <button
+            onClick={handleRunCode}
+            disabled={isRunning}
+            title="Run Code (Ctrl + Enter)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors cursor-pointer text-[11px] shadow-sm disabled:opacity-50"
+          >
+            {isRunning ? (
+              <>
+                <Sparkles size={11} className="animate-spin" />
+                <span>Running...</span>
+              </>
+            ) : (
+              <>
+                <Play size={11} fill="currentColor" />
+                <span>Run Code</span>
+                <span className="text-[9px] opacity-60 font-normal hidden md:inline">(Ctrl+↵)</span>
+              </>
+            )}
+          </button>
 
           <button
             onClick={handleCopy}
@@ -329,31 +208,35 @@ export default function CodeEditor({ tabId }) {
       </div>
 
       {/* Code Editor body with synchronized line numbers and textarea */}
-      <div className="flex-1 flex overflow-hidden relative bg-[#0b1021]">
-        {isLoading ? (
-          <div className="flex-1 flex items-center justify-center text-ide-text/50">
-            Loading file content...
-          </div>
-        ) : (
-          <>
-            {/* Line numbers column */}
-            <div className="w-12 py-3 bg-[#080d1c] select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
-              {lines.map((_, idx) => (
-                <div key={idx} className="leading-6 h-6">
-                  {idx + 1}
-                </div>
-              ))}
+      <div className="flex-1 flex flex-col overflow-hidden relative bg-[#0b1021]">
+        <div className="flex-1 flex overflow-hidden relative">
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center text-ide-text/50">
+              Loading file content...
             </div>
+          ) : (
+            <>
+              {/* Line numbers column */}
+              <div className="w-12 py-3 bg-[#080d1c] select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
+                {lines.map((_, idx) => (
+                  <div key={idx} className="leading-6 h-6">
+                    {idx + 1}
+                  </div>
+                ))}
+              </div>
 
-            {/* Editable textarea */}
-            <textarea
-              value={code}
-              onChange={handleCodeChange}
-              spellCheck={false}
-              className="flex-1 p-3 bg-transparent text-ide-text-bright font-mono text-xs leading-6 resize-none outline-none overflow-auto whitespace-pre tab-4 border-none selection:bg-ide-accent/30 caret-ide-accent"
-            />
-          </>
-        )}
+              {/* Editable textarea */}
+              <textarea
+                ref={textareaRef}
+                value={code}
+                onChange={handleCodeChange}
+                onKeyDown={handleKeyDown}
+                spellCheck={false}
+                className="flex-1 p-3 bg-transparent text-ide-text-bright font-mono text-xs leading-6 resize-none outline-none overflow-auto whitespace-pre tab-4 border-none selection:bg-ide-accent/30 caret-ide-accent"
+              />
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

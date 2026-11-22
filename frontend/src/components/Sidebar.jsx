@@ -9,15 +9,22 @@ import { githubAPI } from '../services/api'
 
 // ── File Icon ─────────────────────────────────────────
 function FileIcon({ name }) {
-  const ext = name.split('.').pop()
+  const ext = name.split('.').pop()?.toLowerCase()
   const iconMap = {
     java: <span className="text-[12px] font-bold text-amber-400 select-none leading-none">☕</span>,
     js: <span className="text-[10px] font-bold text-ide-yellow select-none">JS</span>,
     jsx: <span className="text-[10px] font-bold text-ide-yellow select-none">JSX</span>,
     ts: <span className="text-[10px] font-bold text-ide-blue select-none">TS</span>,
     tsx: <span className="text-[10px] font-bold text-ide-blue select-none">TSX</span>,
-    py: <span className="text-[10px] font-bold text-ide-blue select-none">PY</span>,
+    py: <span className="text-[10px] font-bold text-sky-400 select-none">PY</span>,
+    cpp: <span className="text-[10px] font-bold text-cyan-400 select-none">C++</span>,
+    c: <span className="text-[10px] font-bold text-slate-300 select-none">C</span>,
+    go: <span className="text-[10px] font-bold text-teal-400 select-none">GO</span>,
+    rs: <span className="text-[10px] font-bold text-rose-400 select-none">RS</span>,
+    html: <span className="text-[10px] font-bold text-orange-400 select-none">HTML</span>,
+    css: <span className="text-[10px] font-bold text-blue-300 select-none">CSS</span>,
     json: <span className="text-[10px] text-ide-yellow select-none">{'{}'}</span>,
+    sql: <span className="text-[10px] text-indigo-400 select-none">SQL</span>,
     yml: <span className="text-[10px] text-ide-purple select-none">⚙</span>,
     yaml: <span className="text-[10px] text-ide-purple select-none">⚙</span>,
     xml: <span className="text-[10px] text-ide-red select-none">XML</span>,
@@ -37,16 +44,7 @@ function TreeNode({ node, depth = 0 }) {
     if (isFolder) toggleFolder(node.id)
     if (isFile) {
       setSelectedFile(node)
-      setSelectedDiffFile?.(node.name)
-      // Open or switch to editor tab
-      const tabId = node.name.replace(/\.[^/.]+$/, '')
-      const exists = openTabs.some((t) => t.id === tabId)
-      if (!exists) {
-        useStore.setState({
-          openTabs: [...openTabs, { id: tabId, name: node.name, icon: '📄', closable: true }],
-        })
-      }
-      setActiveEditorTab(tabId)
+      useStore.getState().openFile(node.name)
     }
   }
 
@@ -90,25 +88,65 @@ function TreeNode({ node, depth = 0 }) {
   )
 }
 
-// ── Repo Details Drawer (PRs, Commits, Issues) ────────
+// ── Repo Details Drawer (PRs, Commits, Issues, Files) ────────
 function RepoDetailsPanel({ repo, onClose }) {
-  const [tab, setTab] = useState('prs') // 'prs' | 'commits' | 'issues'
+  const [tab, setTab] = useState('files') // 'files' | 'prs' | 'commits' | 'issues'
   const [prs, setPrs] = useState([])
   const [commits, setCommits] = useState([])
   const [issues, setIssues] = useState([])
+  const [repoTree, setRepoTree] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const { setActiveEditorTab } = useStore()
+  const [loadingFile, setLoadingFile] = useState(null)
+  const { setActiveEditorTab, createFile } = useStore()
+
+  // Build nested tree structure from flat GitHub tree API
+  const buildNestedTree = (flatTree) => {
+    if (!Array.isArray(flatTree)) return []
+    const root = []
+    const map = {}
+
+    for (const item of flatTree) {
+      const parts = item.path.split('/')
+      let current = root
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        const fullPath = parts.slice(0, i + 1).join('/')
+        const isLast = i === parts.length - 1
+
+        if (!map[fullPath]) {
+          const node = {
+            id: fullPath,
+            name: part,
+            path: fullPath,
+            type: isLast && item.type === 'blob' ? 'file' : 'folder',
+            expanded: i < 2,
+            children: [],
+          }
+          map[fullPath] = node
+          current.push(node)
+        }
+        current = map[fullPath].children
+      }
+    }
+    return root
+  }
 
   useEffect(() => {
     setLoading(true)
     setError('')
     Promise.allSettled([
+      githubAPI.getTree(repo),
       githubAPI.getPullRequests(repo),
       githubAPI.getCommits(repo),
       githubAPI.getIssues(repo),
     ])
-      .then(([prRes, commitRes, issueRes]) => {
+      .then(([treeRes, prRes, commitRes, issueRes]) => {
+        if (treeRes.status === 'fulfilled') {
+          const treeData = treeRes.value.data?.tree || treeRes.value.data || []
+          setRepoTree(buildNestedTree(treeData))
+        }
         if (prRes.status === 'fulfilled') setPrs(prRes.value.data || [])
         if (commitRes.status === 'fulfilled') setCommits(commitRes.value.data || [])
         if (issueRes.status === 'fulfilled') setIssues(issueRes.value.data || [])
@@ -117,11 +155,79 @@ function RepoDetailsPanel({ repo, onClose }) {
       .finally(() => setLoading(false))
   }, [repo])
 
+  const handleOpenRepoFile = async (node) => {
+    if (node.type !== 'file') return
+    setLoadingFile(node.path)
+    try {
+      const res = await githubAPI.getFile(repo, node.path)
+      const content = res.data?.content || res.data || ''
+      const filename = node.name
+      createFile(filename, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'user')
+    } catch (err) {
+      console.error('Failed to fetch file:', err)
+    } finally {
+      setLoadingFile(null)
+    }
+  }
+
+  const toggleTreeNode = (nodePath) => {
+    const toggleIn = (nodes) =>
+      nodes.map((n) => {
+        if (n.path === nodePath) return { ...n, expanded: !n.expanded }
+        if (n.children?.length) return { ...n, children: toggleIn(n.children) }
+        return n
+      })
+    setRepoTree(toggleIn(repoTree))
+  }
+
+  const RepoTreeNode = ({ node, depth = 0 }) => (
+    <div>
+      <div
+        onClick={() => node.type === 'folder' ? toggleTreeNode(node.path) : handleOpenRepoFile(node)}
+        style={{ paddingLeft: `${6 + depth * 10}px` }}
+        className={`flex items-center gap-1.5 py-[3px] pr-2 cursor-pointer text-[11px] transition-colors group select-none hover:bg-ide-border/60 hover:text-ide-text-bright ${
+          loadingFile === node.path ? 'text-ide-accent' : 'text-ide-text'
+        }`}
+      >
+        {node.type === 'folder' ? (
+          <>
+            <span className="text-ide-text/50 shrink-0">
+              {node.expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+            </span>
+            {node.expanded ? (
+              <FolderOpen size={12} className="text-amber-400 shrink-0" />
+            ) : (
+              <Folder size={12} className="text-amber-400/80 shrink-0" />
+            )}
+          </>
+        ) : (
+          <>
+            <span className="w-3 shrink-0" />
+            <span className="shrink-0"><FileIcon name={node.name} /></span>
+          </>
+        )}
+        <span className="truncate leading-none">{node.name}</span>
+        {loadingFile === node.path && <Loader2 size={10} className="animate-spin text-ide-accent ml-auto shrink-0" />}
+      </div>
+      {node.type === 'folder' && node.expanded && node.children?.map((child) => (
+        <RepoTreeNode key={child.id} node={child} depth={depth + 1} />
+      ))}
+    </div>
+  )
+
   return (
     <div className="border-t border-ide-border bg-ide-panel/40">
       {/* Header with Tabs */}
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-ide-bg/80 border-b border-ide-border/60">
         <div className="flex items-center gap-2 overflow-x-auto text-[10px] font-semibold">
+          <button
+            onClick={() => setTab('files')}
+            className={`pb-0.5 border-b-2 transition-colors cursor-pointer ${
+              tab === 'files' ? 'border-ide-accent text-ide-accent' : 'border-transparent text-ide-text/60 hover:text-ide-text'
+            }`}
+          >
+            📁 Files
+          </button>
           <button
             onClick={() => setTab('prs')}
             className={`pb-0.5 border-b-2 transition-colors cursor-pointer ${
@@ -154,7 +260,20 @@ function RepoDetailsPanel({ repo, onClose }) {
       {error && <p className="text-[10px] text-ide-red px-3 py-2">{error}</p>}
 
       {!loading && (
-        <div className="max-h-48 overflow-y-auto divide-y divide-ide-border/40 text-[11px]">
+        <div className="max-h-64 overflow-y-auto divide-y divide-ide-border/40 text-[11px]">
+          {/* Files Tab — GitHub Repo Tree */}
+          {tab === 'files' && (
+            repoTree.length === 0 ? (
+              <p className="text-[10px] text-ide-text/40 px-3 py-2">No files found. Repository may be empty or private.</p>
+            ) : (
+              <div className="py-1">
+                {repoTree.map((node) => (
+                  <RepoTreeNode key={node.id} node={node} depth={0} />
+                ))}
+              </div>
+            )
+          )}
+
           {/* PRs */}
           {tab === 'prs' && (
             prs.length === 0 ? (
@@ -163,7 +282,15 @@ function RepoDetailsPanel({ repo, onClose }) {
               prs.map((pr) => (
                 <div
                   key={pr.number}
-                  onClick={() => setActiveEditorTab('pr-452')}
+                  onClick={() => {
+                    const tabs = useStore.getState().openTabs
+                    if (!tabs.some((t) => t.id === 'AppService')) {
+                      useStore.setState({
+                        openTabs: [...tabs, { id: 'AppService', name: 'AppService.java', icon: '📄', closable: true }],
+                      })
+                    }
+                    setActiveEditorTab('AppService')
+                  }}
                   className="px-3 py-2 hover:bg-ide-border/40 cursor-pointer transition-colors"
                 >
                   <div className="flex items-center gap-1.5 mb-0.5">
@@ -227,13 +354,13 @@ import SettingsPanel from './SettingsPanel'
 
 export default function Sidebar() {
   const {
-    repositories,
     sidebarSection,
     activeRepoName,
     setActiveRepoName,
     collapseAll,
     expandAll,
   } = useStore()
+  const { toggleFolder } = useStore()
   const [remoteRepos, setRemoteRepos] = useState([])
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [repoError, setRepoError] = useState('')
@@ -310,38 +437,7 @@ export default function Sidebar() {
     e.preventDefault()
     const trimmed = newFileName.trim()
     if (!trimmed) return
-    const tabId = trimmed.replace(/\.[^/.]+$/, '')
-    const fileNode = {
-      id: Date.now(),
-      name: trimmed,
-      type: 'file',
-      lang: trimmed.endsWith('.java') ? 'java' : trimmed.endsWith('.js') ? 'js' : 'text',
-    }
-    // Add file to core-service
-    const updated = repositories.map((r) => {
-      if (r.name === 'core-service') {
-        return {
-          ...r,
-          expanded: true,
-          children: [...(r.children || []), fileNode],
-        }
-      }
-      return r
-    })
-
-    // Automatically open tab and switch to it
-    const currentOpenTabs = useStore.getState().openTabs
-    const exists = currentOpenTabs.some((t) => t.id === tabId)
-    const newTabs = exists
-      ? currentOpenTabs
-      : [...currentOpenTabs, { id: tabId, name: trimmed, icon: '📄', closable: true }]
-
-    useStore.setState({
-      repositories: updated,
-      openTabs: newTabs,
-      activeEditorTab: tabId,
-      selectedFile: fileNode,
-    })
+    useStore.getState().createFile(trimmed)
     setNewFileName('')
     setShowAddModal(false)
   }
@@ -371,36 +467,14 @@ export default function Sidebar() {
           {/* Repositories Options Dropdown Menu */}
           {showRepoMenu && (
             <div className="absolute top-full left-0 mt-1 w-60 bg-ide-panel border border-ide-border rounded-xl shadow-2xl z-50 p-2 text-xs slide-in">
-              <div className="px-2 py-1 text-[10px] text-ide-text/50 font-semibold uppercase tracking-wider">
-                Active Workspace
-              </div>
-              <div
-                onClick={() => {
-                  setActiveRepoName('core-service')
-                  setSelectedPRRepo(null)
-                  setShowRepoMenu(false)
-                }}
-                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
-                  activeRepoName === 'core-service'
-                    ? 'bg-ide-accent/20 text-ide-accent font-medium'
-                    : 'text-ide-text hover:bg-ide-border'
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Folder size={13} className="text-amber-400 shrink-0" />
-                  <span className="truncate">core-service</span>
-                </div>
-                {activeRepoName === 'core-service' && <span className="text-ide-accent text-[11px] font-bold">✓</span>}
-              </div>
-
               {/* GitHub Repositories List */}
               {remoteRepos.length > 0 && (
                 <>
-                  <div className="px-2 py-1 mt-1.5 border-t border-ide-border/50 text-[10px] text-ide-text/50 font-semibold uppercase tracking-wider">
+                  <div className="px-2 py-1 text-[10px] text-ide-text/50 font-semibold uppercase tracking-wider">
                     GitHub Repositories ({remoteRepos.length})
                   </div>
-                  <div className="max-h-36 overflow-y-auto space-y-0.5">
-                    {remoteRepos.slice(0, 10).map((r) => (
+                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                    {remoteRepos.map((r) => (
                       <div
                         key={r.id}
                         onClick={() => {
@@ -418,35 +492,19 @@ export default function Sidebar() {
                           <GitBranch size={12} className="text-ide-purple shrink-0" />
                           <span className="truncate text-xs">{r.name}</span>
                         </div>
-                        {activeRepoName === r.name && <span className="text-ide-accent text-[11px] font-bold">✓</span>}
+                        {r.language && <span className="text-[9px] text-ide-text/40 shrink-0">{r.language}</span>}
                       </div>
                     ))}
                   </div>
                 </>
               )}
 
+              {remoteRepos.length === 0 && (
+                <div className="px-2 py-2 text-[10px] text-ide-text/40 text-center">No repos loaded yet.</div>
+              )}
+
               {/* Actions */}
               <div className="mt-1.5 pt-1.5 border-t border-ide-border/50 space-y-0.5">
-                <button
-                  onClick={() => {
-                    collapseAll()
-                    setShowRepoMenu(false)
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-ide-text hover:text-ide-text-bright hover:bg-ide-border rounded-lg transition-colors cursor-pointer text-left text-xs"
-                >
-                  <FolderClosed size={12} className="text-amber-400 shrink-0" />
-                  <span>Collapse All Folders</span>
-                </button>
-                <button
-                  onClick={() => {
-                    expandAll()
-                    setShowRepoMenu(false)
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-ide-text hover:text-ide-text-bright hover:bg-ide-border rounded-lg transition-colors cursor-pointer text-left text-xs"
-                >
-                  <FolderOpen size={12} className="text-amber-400 shrink-0" />
-                  <span>Expand All Folders</span>
-                </button>
                 <button
                   onClick={() => {
                     fetchRepos()
@@ -465,7 +523,7 @@ export default function Sidebar() {
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 text-ide-text hover:text-ide-text-bright hover:bg-ide-border rounded-lg transition-colors cursor-pointer text-left text-xs"
                 >
                   <Plus size={12} className="text-ide-accent shrink-0" />
-                  <span>New File / Module</span>
+                  <span>New File</span>
                 </button>
                 <button
                   onClick={() => {
@@ -543,7 +601,7 @@ export default function Sidebar() {
       {/* Add File inline input */}
       {showAddModal && (
         <form onSubmit={handleAddFile} className="p-2 bg-ide-bg border-b border-ide-border flex flex-col gap-1.5 shrink-0">
-          <span className="text-[10px] text-ide-text/50 font-medium">Add to core-service:</span>
+          <span className="text-[10px] text-ide-text/50 font-medium">New file name:</span>
           <input
             type="text"
             placeholder="e.g. UserService.java"
@@ -570,65 +628,71 @@ export default function Sidebar() {
         </form>
       )}
 
-      {/* File Tree */}
+      {/* File Tree — Only GitHub Repos */}
       <div className="flex-1 overflow-y-auto">
-        {/* Local repos (from store) */}
-        {repositories.map((repo) => (
-          <div key={repo.id}>
-            <div
-              onClick={() => toggleFolder(repo.id)}
-              className="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-xs text-ide-text-bright font-medium hover:bg-ide-border/60 transition-colors group select-none"
-            >
-              <span className="text-ide-text/50 shrink-0">
-                {repo.expanded !== false ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              </span>
-              {repo.expanded !== false ? (
-                <FolderOpen size={13} className="text-amber-400 shrink-0" />
-              ) : (
-                <Folder size={13} className="text-amber-400/80 shrink-0" />
-              )}
-              <span className="flex-1 truncate">{repo.name}</span>
-            </div>
-            {repo.expanded !== false && repo.children?.map((child) => (
-              <TreeNode key={child.id} node={child} depth={1} />
-            ))}
+        {loadingRepos && (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <Loader2 size={18} className="animate-spin text-ide-accent" />
+            <span className="text-[10px] text-ide-text/50">Loading repositories...</span>
           </div>
-        ))}
+        )}
 
-        {/* Remote GitHub repos */}
-        {remoteRepos.length > 0 && (
-          <div className="border-t border-ide-border mt-1">
-            <div className="px-3 py-1.5 flex items-center justify-between">
+        {!loadingRepos && remoteRepos.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 px-4 gap-2 text-center">
+            <GitBranch size={22} className="text-ide-text/30" />
+            <span className="text-[11px] text-ide-text/50">No GitHub repositories found.</span>
+            <span className="text-[10px] text-ide-text/30">Connect your GitHub account or import a repo.</span>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="mt-1 px-3 py-1 text-[10px] bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg font-medium cursor-pointer"
+            >
+              Import Repository
+            </button>
+          </div>
+        )}
+
+        {!loadingRepos && remoteRepos.length > 0 && (
+          <>
+            <div className="px-3 py-1.5 flex items-center justify-between border-b border-ide-border/40">
               <span className="text-[10px] text-ide-text/40 uppercase tracking-wider font-semibold">
                 GitHub Repos ({remoteRepos.length})
               </span>
             </div>
-            {remoteRepos.slice(0, 8).map((repo) => (
-              <div
-                key={repo.id}
-                onClick={() => setSelectedPRRepo(selectedPRRepo === repo.name ? null : repo.name)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors
-                  ${selectedPRRepo === repo.name
-                    ? 'bg-ide-accent/15 text-ide-accent'
-                    : 'text-ide-text hover:bg-ide-border/60 hover:text-ide-text-bright'
-                  }`}
-              >
-                <GitBranch size={12} className="shrink-0" />
-                <span className="truncate flex-1">{repo.name}</span>
-                {repo.language && (
-                  <span className="text-[9px] text-ide-text/40 shrink-0">{repo.language}</span>
+            {remoteRepos.map((repo) => (
+              <div key={repo.id}>
+                <div
+                  onClick={() => {
+                    setActiveRepoName(repo.name)
+                    setSelectedPRRepo(selectedPRRepo === repo.name ? null : repo.name)
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors select-none
+                    ${selectedPRRepo === repo.name
+                      ? 'bg-ide-accent/15 text-ide-accent font-medium'
+                      : 'text-ide-text hover:bg-ide-border/60 hover:text-ide-text-bright'
+                    }`}
+                >
+                  {selectedPRRepo === repo.name ? (
+                    <ChevronDown size={11} className="shrink-0 text-ide-accent" />
+                  ) : (
+                    <ChevronRight size={11} className="shrink-0 text-ide-text/50" />
+                  )}
+                  <GitBranch size={12} className="shrink-0 text-ide-purple" />
+                  <span className="truncate flex-1">{repo.name}</span>
+                  {repo.language && (
+                    <span className="text-[9px] text-ide-text/40 shrink-0">{repo.language}</span>
+                  )}
+                </div>
+
+                {/* Expanded repo details with files/PRs/commits/issues */}
+                {selectedPRRepo === repo.name && (
+                  <RepoDetailsPanel
+                    repo={repo.name}
+                    onClose={() => setSelectedPRRepo(null)}
+                  />
                 )}
               </div>
             ))}
-          </div>
-        )}
-
-        {/* PR / Commits / Issues Drawer for selected repo */}
-        {selectedPRRepo && (
-          <RepoDetailsPanel
-            repo={selectedPRRepo}
-            onClose={() => setSelectedPRRepo(null)}
-          />
+          </>
         )}
       </div>
     </div>

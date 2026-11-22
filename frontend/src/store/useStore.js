@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getOrCreateFile, setCachedFile, detectLanguage, fileCache } from './fileStorage'
 
 const useStore = create((set, get) => ({
   // ── UI State ──────────────────────────────────────────
@@ -6,157 +7,48 @@ const useStore = create((set, get) => ({
   sidebarSection: 'repositories',
 
   // ── Repositories & Files ─────────────────────────────
-  repositories: [
-    {
-      id: 1,
-      name: 'core-service',
-      type: 'folder',
-      expanded: true,
-      children: [
-        {
-          id: 11,
-          name: 'src',
-          type: 'folder',
-          expanded: true,
-          children: [
-            {
-              id: 111,
-              name: 'main',
-              type: 'folder',
-              expanded: true,
-              children: [
-                {
-                  id: 1111,
-                  name: 'java',
-                  type: 'folder',
-                  expanded: true,
-                  children: [
-                    {
-                      id: 11111,
-                      name: 'com',
-                      type: 'folder',
-                      expanded: true,
-                      children: [
-                        {
-                          id: 111111,
-                          name: 'company',
-                          type: 'folder',
-                          expanded: true,
-                          children: [
-                            {
-                              id: 111112,
-                              name: 'service',
-                              type: 'folder',
-                              expanded: true,
-                              children: [
-                                { id: 1111121, name: 'AppController.java', type: 'file', lang: 'java' },
-                                { id: 1111122, name: 'AppService.java', type: 'file', lang: 'java' },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  id: 1112,
-                  name: 'resources',
-                  type: 'folder',
-                  expanded: false,
-                  children: [
-                    { id: 11121, name: 'application.yml', type: 'file', lang: 'yml' },
-                  ],
-                },
-              ],
-            },
-            {
-              id: 112,
-              name: 'test',
-              type: 'folder',
-              expanded: false,
-              children: [
-                { id: 1121, name: 'AppControllerTest.java', type: 'file', lang: 'java' },
-              ],
-            },
-          ],
-        },
-        { id: 12, name: 'pom.xml', type: 'file', lang: 'xml' },
-      ],
-    },
-  ],
+  repositories: [],
 
   selectedFile: null,
   openTabs: [
-    { id: 'AppController', name: 'AppController.java', icon: '📄' },
-    { id: 'AppService', name: 'AppService.java', icon: '📄' },
-    { id: 'pr-452', name: 'PR #452: Fix data fetch', icon: '🔀', closable: true },
-    { id: 'terminal', name: 'Terminal', icon: '💻' },
+    { id: 'welcome', name: 'Welcome', icon: '✨', closable: true },
   ],
-  activeEditorTab: 'pr-452',
+  activeEditorTab: 'welcome',
+  lastFileAction: null,
 
   // ── PR / Diff ─────────────────────────────────────────
   currentPR: {
     number: 452,
     title: 'Fix data fetch issues and improve error handling',
     status: 'Open',
-    diffOld: `public class AppController {
-
-  @GetMapping("/data")
-  public class getData() {
-    return service.getData();
-  }
-
-  @GetMapping("/data")
-    return service.getData();
-  }
-}`,
-    diffNew: `public class AppController {
-
-  @GetMapping("/data")
-  public AppService.getData() {
-    return service.getData();
-  }
-
-  @GetMapping("/data")
-    return service.getData();
-  }
-
-  // New data structure
-  public Optional<Data> getData() {
-    return Optional.ofNullable(
-      repository.fetchData());
-  }
-}`,
+    diffOld: '',
+    diffNew: '',
   },
 
   // ── AI Chat ───────────────────────────────────────────
   chatMessages: [
     {
       id: 1,
-      role: 'user',
-      content: "Can you refactor the `getData` method in `AppService.java` to handle potential null pointer exceptions?",
-      timestamp: new Date(Date.now() - 60000),
-    },
-    {
-      id: 2,
       role: 'assistant',
-      content: "Certainly! Here is a refactored version using `Optional` to handle potential nulls:",
-      code: `public Optional<Data> getData() {
-  return Optional.ofNullable(
-    repository.fetchData());
-}`,
-      codeLanguage: 'java',
-      actions: ['Apply Code', 'Create PR'],
-      timestamp: new Date(Date.now() - 30000),
+      content: `👋 **Welcome to DevSphere AI Studio!** I am your autonomous AI developer agent.
+
+You can ask me to:
+• **Create new files** in Python, JavaScript, TypeScript, C++, Java, Go, Rust (e.g. \`create app.py with a flask server\`)
+• **Open & modify repository files** (e.g. \`add caching to AppService.java\`)
+• **Refactor, optimize, or test** active code in the editor
+
+How can I help you build today?`,
+      timestamp: new Date(),
     },
   ],
   chatInput: '',
   isAiTyping: false,
   aiModel: 'Gemini 3.8 Flash (Free)',
+  aiTemperature: 0.2,
   mcpConnected: true,
 
   // ── Actions ───────────────────────────────────────────
+  setAiTemperature: (temperature) => set({ aiTemperature: temperature }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),
   setSidebarSection: (section) => set({ sidebarSection: section }),
@@ -168,7 +60,7 @@ const useStore = create((set, get) => ({
   }),
   setChatInput: (input) => set({ chatInput: input }),
 
-  activeRepoName: 'core-service',
+  activeRepoName: 'workspace',
   setActiveRepoName: (name) => set({ activeRepoName: name }),
 
   collapseAll: () => {
@@ -208,10 +100,106 @@ const useStore = create((set, get) => ({
 
   setAiTyping: (typing) => set({ isAiTyping: typing }),
 
+  // ── File Management Actions ─────────────────────────
+  createFile: (rawName, content = null, by = 'user') => {
+    const filename = (rawName || '').trim()
+    if (!filename) return
+    const fileObj = getOrCreateFile(filename, content)
+
+    set((s) => {
+      const fileNode = {
+        id: Date.now(),
+        name: filename,
+        type: 'file',
+        lang: fileObj.lang,
+      }
+      const updatedRepos = s.repositories.map((repo) => {
+        if (repo.name === 'core-service') {
+          const exists = (repo.children || []).some((c) => c.name === filename)
+          if (exists) return repo
+          return {
+            ...repo,
+            expanded: true,
+            children: [...(repo.children || []), fileNode],
+          }
+        }
+        return repo
+      })
+
+      const tabExists = s.openTabs.some((t) => t.id === filename || t.name === filename)
+      const newTabs = tabExists
+        ? s.openTabs
+        : [...s.openTabs, { id: filename, name: filename, icon: '📄', closable: true }]
+
+      return {
+        repositories: updatedRepos,
+        openTabs: newTabs,
+        activeEditorTab: filename,
+        lastFileAction: { type: 'created', filename, by, timestamp: Date.now() },
+      }
+    })
+  },
+
+  updateFile: (filename, content, by = 'user') => {
+    if (!filename) return
+    const lang = detectLanguage(filename)
+    setCachedFile(filename, content, lang)
+
+    set((s) => {
+      const tabExists = s.openTabs.some((t) => t.id === filename || t.name === filename)
+      const newTabs = tabExists
+        ? s.openTabs
+        : [...s.openTabs, { id: filename, name: filename, icon: '📄', closable: true }]
+
+      return {
+        openTabs: newTabs,
+        activeEditorTab: filename,
+        lastFileAction: { type: 'modified', filename, by, timestamp: Date.now() },
+      }
+    })
+  },
+
+  openFile: (filename) => {
+    if (!filename) return
+    getOrCreateFile(filename)
+    set((s) => {
+      const tabExists = s.openTabs.some((t) => t.id === filename || t.name === filename)
+      const newTabs = tabExists
+        ? s.openTabs
+        : [...s.openTabs, { id: filename, name: filename, icon: '📄', closable: true }]
+      return {
+        openTabs: newTabs,
+        activeEditorTab: filename,
+      }
+    })
+  },
+
+  deleteFile: (filename) => {
+    delete fileCache[filename]
+    set((s) => {
+      const filterNodes = (nodes) =>
+        nodes
+          .filter((n) => n.name !== filename)
+          .map((n) => ({
+            ...n,
+            children: n.children ? filterNodes(n.children) : undefined,
+          }))
+
+      const newTabs = s.openTabs.filter((t) => t.id !== filename && t.name !== filename)
+      const nextActive = s.activeEditorTab === filename ? (newTabs[newTabs.length - 1]?.id || 'welcome') : s.activeEditorTab
+
+      return {
+        repositories: filterNodes(s.repositories),
+        openTabs: newTabs,
+        activeEditorTab: nextActive,
+      }
+    })
+  },
+
   closeTab: (tabId) =>
     set((s) => {
       const tabs = s.openTabs.filter((t) => t.id !== tabId)
-      const active = s.activeEditorTab === tabId ? (tabs[tabs.length - 1]?.id || '') : s.activeEditorTab
+      const active = s.activeEditorTab === tabId ? (tabs[tabs.length - 1]?.id || 'welcome') : s.activeEditorTab
       return { openTabs: tabs, activeEditorTab: active }
     }),
 }))

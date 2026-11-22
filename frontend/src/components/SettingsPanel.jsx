@@ -6,21 +6,16 @@ import { checkHealth, authAPI } from '../services/api'
 import {
   Settings,
   Cpu,
-  Palette,
   Shield,
   Database,
   Check,
   RefreshCw,
   LogOut,
-  Sliders,
-  Bell,
-  Terminal,
-  Zap,
 } from 'lucide-react'
 
 export default function SettingsPanel() {
   const navigate = useNavigate()
-  const { aiModel } = useStore()
+  const { aiModel, aiTemperature, setAiTemperature } = useStore()
   const { user, isAuthenticated, logout } = useAuthStore()
 
   const handleSignOut = async () => {
@@ -33,11 +28,7 @@ export default function SettingsPanel() {
 
   // Setting states
   const [selectedModel, setSelectedModel] = useState(aiModel || 'Gemini 3.8 Flash (Free)')
-  const [selectedTheme, setSelectedTheme] = useState('Tokyo Night')
-  const [fontSize, setFontSize] = useState(13)
-  const [autoSave, setAutoSave] = useState(true)
-  const [soundEffects, setSoundEffects] = useState(false)
-  const [temperature, setTemperature] = useState(0.2)
+  const [temperature, setTemperature] = useState(typeof aiTemperature === 'number' ? aiTemperature : 0.2)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
   // Health and connection state
@@ -61,10 +52,19 @@ export default function SettingsPanel() {
   }, [])
 
   const handleSave = () => {
-    // Sync model to global store
-    useStore.setState({ aiModel: selectedModel })
+    // Sync model and temperature to global store
+    useStore.setState({
+      aiModel: selectedModel,
+      aiTemperature: temperature,
+    })
     setSavedSuccess(true)
     setTimeout(() => setSavedSuccess(false), 2200)
+  }
+
+  const handleTemperatureChange = (val) => {
+    const num = parseFloat(val)
+    setTemperature(num)
+    useStore.setState({ aiTemperature: num })
   }
 
   return (
@@ -100,7 +100,7 @@ export default function SettingsPanel() {
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full bg-ide-bg border border-ide-border rounded-lg px-2 py-1.5 text-xs text-ide-text-bright outline-none focus:border-ide-accent"
+                className="w-full bg-ide-bg border border-ide-border rounded-lg px-2 py-1.5 text-xs text-ide-text-bright outline-none focus:border-ide-accent cursor-pointer"
               >
                 <option value="Gemini 3.8 Flash (Free)">Gemini 3.8 Flash (Free & Recommended)</option>
                 <option value="Gemini 2.5 Flash (Free)">Gemini 2.5 Flash (Free)</option>
@@ -112,7 +112,7 @@ export default function SettingsPanel() {
             <div>
               <div className="flex justify-between text-[10px] text-ide-text/60 mb-1">
                 <span>Creativity (Temperature)</span>
-                <span className="text-ide-accent font-mono">{temperature}</span>
+                <span className="text-ide-accent font-mono font-bold">{temperature.toFixed(1)}</span>
               </div>
               <input
                 type="range"
@@ -120,62 +120,19 @@ export default function SettingsPanel() {
                 max="1.0"
                 step="0.1"
                 value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                onChange={(e) => handleTemperatureChange(e.target.value)}
                 className="w-full accent-ide-accent cursor-pointer"
               />
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Editor Appearance */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 text-ide-text-bright font-semibold">
-            <Palette size={13} className="text-ide-yellow" />
-            <span>Editor Appearance</span>
-          </div>
-          <div className="p-2.5 bg-ide-panel rounded-xl border border-ide-border space-y-2.5">
-            <div>
-              <label className="text-[10px] text-ide-text/60 block mb-1">Color Theme</label>
-              <select
-                value={selectedTheme}
-                onChange={(e) => setSelectedTheme(e.target.value)}
-                className="w-full bg-ide-bg border border-ide-border rounded-lg px-2 py-1.5 text-xs text-ide-text-bright outline-none focus:border-ide-accent"
-              >
-                <option value="Tokyo Night">Tokyo Night (Dark Blue/Purple)</option>
-                <option value="VS Code Dark+">VS Code Dark Modern</option>
-                <option value="One Dark Pro">One Dark Pro</option>
-                <option value="GitHub Dark">GitHub Dark Dimmed</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-[10px] text-ide-text/60 mb-1">
-                <span>Editor Font Size</span>
-                <span className="text-ide-yellow font-mono">{fontSize}px</span>
+              <div className="flex justify-between text-[9px] text-ide-text/40 mt-1">
+                <span>0.0 Precise / Analytical</span>
+                <span>0.5 Balanced</span>
+                <span>1.0 Creative</span>
               </div>
-              <input
-                type="range"
-                min="11"
-                max="18"
-                value={fontSize}
-                onChange={(e) => setFontSize(parseInt(e.target.value, 10))}
-                className="w-full accent-ide-yellow cursor-pointer"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-1 border-t border-ide-border/40">
-              <span className="text-[11px] text-ide-text/70">Auto-save edits</span>
-              <input
-                type="checkbox"
-                checked={autoSave}
-                onChange={(e) => setAutoSave(e.target.checked)}
-                className="accent-ide-accent cursor-pointer w-3.5 h-3.5"
-              />
             </div>
           </div>
         </div>
 
-        {/* 3. System & Connectivity Status */}
+        {/* 2. System & Connectivity Status */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-ide-text-bright font-semibold">
@@ -215,7 +172,7 @@ export default function SettingsPanel() {
           </div>
         </div>
 
-        {/* 4. User Profile & Session */}
+        {/* 3. User Profile & Session */}
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-ide-text-bright font-semibold">
             <Shield size={13} className="text-ide-purple" />

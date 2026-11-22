@@ -7,6 +7,7 @@ import {
   handleSmartBugScan,
   handleGenerateDocs,
   handleCodeReview,
+  handlePlanTasks,
 } from '../controllers/aiController.js'
 import { optionalAuth } from '../middleware/auth.js'
 
@@ -16,6 +17,7 @@ const router = Router()
 router.post('/chat', optionalAuth, chat)
 router.post('/analyze-diff', optionalAuth, analyzeCodeDiff)
 router.post('/generate-pr-description', optionalAuth, generatePR)
+router.post('/plan-tasks', optionalAuth, handlePlanTasks)
 
 // 1. AI Coding Assistant (Explain, Generate, Fix bugs, Refactor, Generate tests, Convert)
 router.post('/coding-assist', optionalAuth, handleCodingAssist)

@@ -18,6 +18,7 @@ import githubRoutes from './routes/githubRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import taskRoutes from './routes/taskRoutes.js'
 import docRoutes from './routes/docRoutes.js'
+import compilerRoutes from './routes/compilerRoutes.js'
 import { apiLimiter, aiLimiter, requestLogger } from './middleware/rateLimiter.js'
 import { connectDB, isDBConnected } from './config/db.js'
 
@@ -77,6 +78,7 @@ app.use('/api/ai', aiRoutes)
 app.use('/api/github', githubRoutes)
 app.use('/api/tasks', taskRoutes)
 app.use('/api/docs', docRoutes)
+app.use('/api/compiler', compilerRoutes)
 
 app.get('/api/health', (req, res) => res.json({
   status: 'ok',

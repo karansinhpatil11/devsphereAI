@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { taskAPI } from '../services/api'
-import { CheckSquare, Plus, Trash2, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import { CheckSquare, Plus, Trash2, CheckCircle2, Clock, AlertCircle, Sparkles } from 'lucide-react'
 
 export default function TaskPanel() {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(false)
+  const [isPlanning, setIsPlanning] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -24,7 +25,26 @@ export default function TaskPanel() {
 
   useEffect(() => {
     fetchTasks()
+    const handleSync = () => fetchTasks()
+    window.addEventListener('tasks-updated', handleSync)
+    return () => window.removeEventListener('tasks-updated', handleSync)
   }, [])
+
+  const handleAIPlan = async () => {
+    setIsPlanning(true)
+    try {
+      const res = await taskAPI.planTasks()
+      if (res.data?.tasks) {
+        setTasks(res.data.tasks)
+      } else {
+        await fetchTasks()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsPlanning(false)
+    }
+  }
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -72,13 +92,24 @@ export default function TaskPanel() {
         <span className="text-[10px] text-ide-text/40 font-semibold uppercase tracking-wider">
           Task Tracker ({tasks.length})
         </span>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1 text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
-        >
-          <Plus size={13} />
-          <span>New Task</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAIPlan}
+            disabled={isPlanning}
+            title="Auto-plan tasks using Gemini AI"
+            className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-ide-accent/15 border border-ide-accent/30 text-ide-accent hover:bg-ide-accent/25 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <Sparkles size={11} className={isPlanning ? 'animate-spin' : ''} />
+            <span>{isPlanning ? 'Planning...' : '✨ AI Plan'}</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1 text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
+          >
+            <Plus size={13} />
+            <span>New Task</span>
+          </button>
+        </div>
       </div>
 
       {/* New Task Form Modal */}

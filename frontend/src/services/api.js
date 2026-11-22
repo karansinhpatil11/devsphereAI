@@ -61,7 +61,7 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
 }
 
-export const sendChatMessage = (message, history, model) => api.post('/ai/chat', { message, history, model })
+export const sendChatMessage = (message, history, model, temperature) => api.post('/ai/chat', { message, history, model, temperature })
 export const analyzeDiff = (diff, model) => api.post('/ai/analyze-diff', { diff, model })
 export const generatePRDescription = (changes, model) => api.post('/ai/generate-pr-description', { changes, model })
 
@@ -97,6 +97,7 @@ export const taskAPI = {
   createTask: (data) => api.post('/tasks', data),
   updateTask: (id, data) => api.put(`/tasks/${id}`, data),
   deleteTask: (id) => api.delete(`/tasks/${id}`),
+  planTasks: (data = {}) => api.post('/ai/plan-tasks', data),
 }
 
 export const projectAPI = {
@@ -114,6 +115,11 @@ export const docAPI = {
   createDoc: (data) => api.post('/docs', data),
   updateDoc: (id, data) => api.put(`/docs/${id}`, data),
   deleteDoc: (id) => api.delete(`/docs/${id}`),
+}
+
+export const compilerAPI = {
+  execute: (data) => api.post('/compiler/execute', data),
+  getLanguages: () => api.get('/compiler/languages'),
 }
 
 export const checkHealth = () => api.get('/health')

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authAPI } from '../services/api'
 import useAuthStore from '../store/authStore'
-import { Lock, Mail, ArrowRight, Bot, AlertCircle, Github } from 'lucide-react'
+import { Lock, Mail, ArrowRight, Bot, AlertCircle, ShieldCheck, Zap } from 'lucide-react'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,9 +17,8 @@ export default function LoginPage() {
     if (error) setError('')
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!formData.email || !formData.password) {
+  const handleLoginWithCredentials = async (email, password) => {
+    if (!email || !password) {
       setError('Please provide both email and password.')
       return
     }
@@ -28,32 +27,49 @@ export default function LoginPage() {
     setError('')
     try {
       const res = await authAPI.login({
-        email: formData.email.trim(),
-        password: formData.password,
+        email: email.trim(),
+        password: password,
       })
+      // Store JWT token & authenticated user in localStorage
       login(res.data.user, res.data.accessToken)
       navigate('/')
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
+      setError(err.response?.data?.error || 'Authentication failed. Please verify your credentials.')
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    handleLoginWithCredentials(formData.email, formData.password)
+  }
+
+  const handleDemoJWTLogin = () => {
+    setFormData({ email: 'dev@example.com', password: 'password123' })
+    handleLoginWithCredentials('dev@example.com', 'password123')
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-ide-bg px-4 relative overflow-hidden">
-      {/* Subtle ambient lighting */}
+      {/* Ambient background glow */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-ide-accent/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-ide-purple/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md bg-ide-panel border border-ide-border rounded-2xl p-8 shadow-2xl relative z-10">
         {/* Brand Header */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-ide-accent to-ide-purple flex items-center justify-center shadow-lg shadow-ide-accent/20 mb-3">
             <Bot size={26} className="text-white" />
           </div>
           <h1 className="text-xl font-bold text-ide-text-bright tracking-tight">AI Developer Assistant</h1>
-          <p className="text-xs text-ide-text/60 mt-1">Sign in to your development workspace</p>
+          <div className="flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full bg-ide-accent/15 border border-ide-accent/30 text-ide-accent text-[11px] font-medium">
+            <ShieldCheck size={13} />
+            <span>JWT Token Authentication</span>
+          </div>
+          <p className="text-xs text-ide-text/60 mt-2 text-center">
+            Sign in to authenticate with secure JSON Web Tokens (JWT)
+          </p>
         </div>
 
         {/* Error message */}
@@ -104,30 +120,24 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full mt-2 bg-ide-accent hover:bg-ide-accent-hover text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-ide-accent/20 cursor-pointer disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Authenticating with JWT...' : 'Sign In with JWT'}
             <ArrowRight size={14} />
           </button>
 
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-ide-border/60"></div>
-            <span className="flex-shrink mx-3 text-[10px] text-ide-text/40 uppercase font-semibold">Or</span>
+            <span className="flex-shrink mx-3 text-[10px] text-ide-text/40 uppercase font-semibold">Demo Access</span>
             <div className="flex-grow border-t border-ide-border/60"></div>
           </div>
 
-          <a
-            href="http://localhost:5000/api/auth/github"
-            className="w-full py-2 bg-ide-panel hover:bg-ide-border border border-ide-border rounded-xl text-xs text-ide-text-bright font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
-          >
-            <Github size={14} />
-            <span>Continue with GitHub</span>
-          </a>
-
           <button
             type="button"
-            onClick={() => setFormData({ email: 'dev@example.com', password: 'password123' })}
-            className="w-full py-1.5 bg-ide-border/40 hover:bg-ide-border text-ide-text hover:text-ide-text-bright rounded-xl text-[11px] font-medium transition-colors cursor-pointer text-center"
+            onClick={handleDemoJWTLogin}
+            disabled={loading}
+            className="w-full py-2 bg-ide-green/15 hover:bg-ide-green/25 border border-ide-green/30 text-ide-green rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            ⚡ Auto-fill Demo Account (dev@example.com)
+            <Zap size={14} />
+            <span>1-Click Instant Demo Login (dev@example.com)</span>
           </button>
         </form>
 
@@ -137,7 +147,7 @@ export default function LoginPage() {
             ← Continue as Guest
           </Link>
           <p className="text-ide-text/60">
-            Don't have an account?{' '}
+            Need an account?{' '}
             <Link to="/signup" className="text-ide-accent hover:underline font-medium">
               Sign Up
             </Link>

@@ -2,45 +2,194 @@ import React from 'react'
 import ActivityBar from '../components/ActivityBar'
 import Sidebar from '../components/Sidebar'
 import TabBar from '../components/TabBar'
-import DiffViewer from '../components/DiffViewer'
 import AIAssistant from '../components/AIAssistant'
 import useStore from '../store/useStore'
-import { Globe, RefreshCw } from 'lucide-react'
+import { Globe, RefreshCw, ChevronDown, Terminal as TerminalIcon, X, Bug, ListChecks } from 'lucide-react'
 
 import CodeEditor from '../components/CodeEditor'
 import Terminal from '../components/Terminal'
+import WelcomeScreen from '../components/WelcomeScreen'
 
 function EditorArea() {
-  const { activeEditorTab } = useStore()
+  const { activeEditorTab, openTabs } = useStore()
 
-  if (activeEditorTab === 'terminal') {
-    return <Terminal />
-  }
-
-  if (activeEditorTab === 'pr-452') {
-    return <DiffViewer />
+  if (!activeEditorTab || activeEditorTab === 'welcome' || openTabs.length === 0) {
+    return <WelcomeScreen />
   }
 
   // Render file editor for selected file tabs
   return <CodeEditor tabId={activeEditorTab} />
 }
 
+// VS Code-style bottom panel: Terminal, Output, Problems, Debug Console
+function BottomPanel({ visible, onToggle, onClose, activeBottomTab, setActiveBottomTab, compilerOutput }) {
+  if (!visible) return null
+
+  const problemCount = 0
+  const outputLines = compilerOutput || null
+
+  return (
+    <div className="flex flex-col bg-[#070b16] border-t border-ide-border shrink-0" style={{ height: '220px' }}>
+      {/* Panel tab bar */}
+      <div className="flex items-center justify-between px-2 h-8 bg-[#090d1c] border-b border-ide-border shrink-0 select-none">
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setActiveBottomTab('terminal')}
+            className={`px-2.5 py-1 text-[11px] rounded-t transition-colors cursor-pointer ${
+              activeBottomTab === 'terminal'
+                ? 'text-ide-text-bright border-b-2 border-ide-accent font-semibold'
+                : 'text-ide-text/50 hover:text-ide-text'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <TerminalIcon size={11} />
+              TERMINAL
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveBottomTab('output')}
+            className={`px-2.5 py-1 text-[11px] rounded-t transition-colors cursor-pointer ${
+              activeBottomTab === 'output'
+                ? 'text-ide-text-bright border-b-2 border-ide-accent font-semibold'
+                : 'text-ide-text/50 hover:text-ide-text'
+            }`}
+          >
+            OUTPUT
+          </button>
+          <button
+            onClick={() => setActiveBottomTab('problems')}
+            className={`px-2.5 py-1 text-[11px] rounded-t transition-colors cursor-pointer ${
+              activeBottomTab === 'problems'
+                ? 'text-ide-text-bright border-b-2 border-ide-accent font-semibold'
+                : 'text-ide-text/50 hover:text-ide-text'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              PROBLEMS
+              {problemCount > 0 && (
+                <span className="px-1.5 py-0 rounded-full bg-ide-red/20 text-ide-red text-[9px] font-bold">{problemCount}</span>
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveBottomTab('debug')}
+            className={`px-2.5 py-1 text-[11px] rounded-t transition-colors cursor-pointer ${
+              activeBottomTab === 'debug'
+                ? 'text-ide-text-bright border-b-2 border-ide-accent font-semibold'
+                : 'text-ide-text/50 hover:text-ide-text'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              DEBUG CONSOLE
+            </span>
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onToggle}
+            title="Toggle Panel"
+            className="p-1 text-ide-text/40 hover:text-ide-text cursor-pointer"
+          >
+            <ChevronDown size={12} />
+          </button>
+          <button
+            onClick={onClose}
+            title="Close Panel (Ctrl + `)"
+            className="p-1 text-ide-text/40 hover:text-ide-text cursor-pointer"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Panel content */}
+      <div className="flex-1 overflow-auto">
+        {activeBottomTab === 'terminal' && <Terminal />}
+        {activeBottomTab === 'output' && (
+          <div className="h-full font-mono text-xs">
+            {outputLines ? (
+              <div className="p-3 space-y-2">
+                {outputLines.status === 'RUNNING' && (
+                  <div className="text-amber-400 italic animate-pulse">⟳ Compiling and executing...</div>
+                )}
+                {outputLines.status !== 'RUNNING' && (
+                  <>
+                    {outputLines.stdout && (
+                      <pre className="text-emerald-300 whitespace-pre-wrap leading-relaxed">{outputLines.stdout}</pre>
+                    )}
+                    {outputLines.stderr && (
+                      <pre className="text-rose-400 whitespace-pre-wrap leading-relaxed">{outputLines.stderr}</pre>
+                    )}
+                    {!outputLines.stdout && !outputLines.stderr && (
+                      <div className="text-ide-text/40 italic">Process finished with no output.</div>
+                    )}
+                    <div className="text-[10px] text-ide-text/30 flex items-center gap-3 pt-1 border-t border-ide-border/30 mt-2">
+                      {outputLines.success !== undefined && (
+                        <span className={outputLines.success ? 'text-emerald-400' : 'text-rose-400'}>
+                          {outputLines.success ? '✓ Success' : '✗ Failed'} (exit code: {outputLines.exitCode ?? '?'})
+                        </span>
+                      )}
+                      {outputLines.executionTimeMs !== undefined && (
+                        <span>⏱ {outputLines.executionTimeMs}ms</span>
+                      )}
+                      {outputLines.runner && <span>Engine: {outputLines.runner}</span>}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 text-ide-text/40 italic">
+                No output yet. Run code from the editor (Ctrl + Enter) to see output here.
+              </div>
+            )}
+          </div>
+        )}
+        {activeBottomTab === 'problems' && (
+          <div className="p-3 text-xs font-mono text-ide-text/40 italic">
+            No problems detected in workspace.
+          </div>
+        )}
+        {activeBottomTab === 'debug' && (
+          <div className="p-3 text-xs font-mono text-ide-text/40 italic">
+            Debug console is ready. Run code with breakpoints to see debug output.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function IDELayout() {
   const { setActiveEditorTab, openTabs, activeEditorTab, activeRepoName } = useStore()
   const [fullscreen, setFullscreen] = React.useState(false)
+  const [showBottomPanel, setShowBottomPanel] = React.useState(false)
+  const [activeBottomTab, setActiveBottomTab] = React.useState('terminal')
+  const [compilerOutput, setCompilerOutput] = React.useState(null)
+
+  // Expose a way for CodeEditor to send output to the bottom panel
+  React.useEffect(() => {
+    window.__ideSetCompilerOutput = (output) => {
+      setCompilerOutput(output)
+      setShowBottomPanel(true)
+      setActiveBottomTab('output')
+    }
+    return () => { delete window.__ideSetCompilerOutput }
+  }, [])
+
+  // Ctrl+` keyboard shortcut to toggle terminal/bottom panel
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault()
+        setShowBottomPanel((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleRefresh = () => {
     window.location.reload()
-  }
-
-  const handleBack = () => {
-    const idx = openTabs.findIndex((t) => t.id === useStore.getState().activeEditorTab)
-    if (idx > 0) setActiveEditorTab(openTabs[idx - 1].id)
-  }
-
-  const handleForward = () => {
-    const idx = openTabs.findIndex((t) => t.id === useStore.getState().activeEditorTab)
-    if (idx < openTabs.length - 1 && idx >= 0) setActiveEditorTab(openTabs[idx + 1].id)
   }
 
   const toggleFullscreen = () => {
@@ -66,8 +215,8 @@ export default function IDELayout() {
               className="w-3 h-3 rounded-full bg-[#ff5f57] hover:brightness-110 cursor-pointer"
             />
             <button
-              onClick={() => setActiveEditorTab('terminal')}
-              title="Minimize to Terminal"
+              onClick={() => setShowBottomPanel(!showBottomPanel)}
+              title="Toggle Panel"
               className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 cursor-pointer"
             />
             <button
@@ -76,31 +225,13 @@ export default function IDELayout() {
               className="w-3 h-3 rounded-full bg-[#28c840] hover:brightness-110 cursor-pointer"
             />
           </div>
-          <button
-            onClick={handleBack}
-            title="Previous Tab"
-            className="text-ide-text hover:text-ide-text-bright transition-colors ml-3 cursor-pointer text-xs"
-          >
-            ◁
-          </button>
-          <button
-            onClick={handleForward}
-            title="Next Tab"
-            className="text-ide-text hover:text-ide-text-bright transition-colors cursor-pointer text-xs"
-          >
-            ▷
-          </button>
         </div>
 
         {/* URL / Workspace bar */}
         <div className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 flex-1 mx-6 max-w-sm">
           <Globe size={11} className="text-ide-text/50 shrink-0" />
           <span className="text-xs text-ide-text/70 truncate">
-            {activeEditorTab === 'pr-452'
-              ? `developer-studio://${activeRepoName || 'core-service'}/pr-452`
-              : activeEditorTab === 'terminal'
-              ? `developer-studio://${activeRepoName || 'core-service'}/terminal`
-              : `developer-studio://${activeRepoName || 'core-service'}/${activeEditorTab}`}
+            {`devsphere://${activeRepoName || 'workspace'}/${activeEditorTab || 'welcome'}`}
           </span>
           <button
             onClick={handleRefresh}
@@ -113,18 +244,17 @@ export default function IDELayout() {
 
         <div className="flex items-center gap-3 text-ide-text/50">
           <button
-            onClick={() => setActiveEditorTab('pr-452')}
-            title="Open PR Diff"
-            className="text-xs hover:text-ide-text-bright cursor-pointer"
+            onClick={() => {
+              setShowBottomPanel(true)
+              setActiveBottomTab('terminal')
+            }}
+            title="Toggle Terminal (Ctrl + `)"
+            className={`text-xs hover:text-ide-text-bright cursor-pointer flex items-center gap-1 ${
+              showBottomPanel && activeBottomTab === 'terminal' ? 'text-ide-accent font-semibold' : ''
+            }`}
           >
-            ⊕ Diff
-          </button>
-          <button
-            onClick={() => setActiveEditorTab('terminal')}
-            title="Open Terminal"
-            className="text-xs hover:text-ide-text-bright cursor-pointer"
-          >
-            ⊘ Terminal
+            <TerminalIcon size={11} />
+            Terminal
           </button>
         </div>
       </div>
@@ -137,12 +267,21 @@ export default function IDELayout() {
         {/* Sidebar File Tree */}
         <Sidebar />
 
-        {/* Editor + Tabs */}
+        {/* Editor + Tabs + Bottom Panel */}
         <div className="flex flex-col flex-1 overflow-hidden">
           <TabBar />
           <div className="flex-1 overflow-hidden">
             <EditorArea />
           </div>
+          {/* VS Code-style bottom panel */}
+          <BottomPanel
+            visible={showBottomPanel}
+            onToggle={() => setShowBottomPanel(!showBottomPanel)}
+            onClose={() => setShowBottomPanel(false)}
+            activeBottomTab={activeBottomTab}
+            setActiveBottomTab={setActiveBottomTab}
+            compilerOutput={compilerOutput}
+          />
         </div>
 
         {/* AI Assistant Panel */}

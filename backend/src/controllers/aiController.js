@@ -8,18 +8,18 @@ import { isDBConnected } from '../config/db.js'
  */
 export async function chat(req, res) {
   try {
-    const { message, history = [], model } = req.body
+    const { message, history = [], model, temperature } = req.body
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'message is required' })
     }
 
-    const result = await chatWithAI(message, history, model)
+    const userId = req.user?.id || req.user?.email || 'DevUser'
+    const result = await chatWithAI(message, history, model, userId, temperature)
 
     // Persist chat session to MongoDB
     if (isDBConnected()) {
       try {
-        const userId = req.user?.id || req.user?.email || 'DevUser'
         const sessionId = `session-${userId}`
         await AISession.findOneAndUpdate(
           { sessionId },
@@ -68,10 +68,10 @@ export async function chat(req, res) {
  */
 export async function analyzeCodeDiff(req, res) {
   try {
-    const { diff, model } = req.body
+    const { diff, model, temperature } = req.body
     if (!diff) return res.status(400).json({ error: 'diff is required' })
 
-    const result = await analyzeDiff(diff, model)
+    const result = await analyzeDiff(diff, model, req.user?.id || req.user?.email || 'DevUser', temperature)
     return res.json(result)
   } catch (err) {
     console.error('[Analyze Diff Error]', err.message)
@@ -81,14 +81,14 @@ export async function analyzeCodeDiff(req, res) {
 
 /**
  * POST /api/ai/generate-pr-description
- * Body: { changes, model }
+ * Body: { changes, model, temperature }
  */
 export async function generatePR(req, res) {
   try {
-    const { changes, model } = req.body
+    const { changes, model, temperature } = req.body
     if (!changes) return res.status(400).json({ error: 'changes are required' })
 
-    const result = await generatePRDescription(changes, model)
+    const result = await generatePRDescription(changes, model, req.user?.id || req.user?.email || 'DevUser', temperature)
     return res.json(result)
   } catch (err) {
     console.error('[Generate PR Error]', err.message)
@@ -98,11 +98,11 @@ export async function generatePR(req, res) {
 
 /**
  * POST /api/ai/coding-assist
- * Body: { action, code, language, targetLanguage, prompt, model }
+ * Body: { action, code, language, targetLanguage, prompt, model, temperature }
  */
 export async function handleCodingAssist(req, res) {
   try {
-    const { action, code, language, targetLanguage, prompt, model } = req.body
+    const { action, code, language, targetLanguage, prompt, model, temperature, filename } = req.body
     if (!action) return res.status(400).json({ error: 'action is required' })
 
     const user = req.user?.id || req.user?.email || 'DevUser'
@@ -115,6 +115,8 @@ export async function handleCodingAssist(req, res) {
       prompt,
       model,
       user,
+      temperature,
+      filename,
     })
 
     return res.json(result)
@@ -126,11 +128,11 @@ export async function handleCodingAssist(req, res) {
 
 /**
  * POST /api/ai/smart-bug-scan
- * Body: { code, language, filename, model }
+ * Body: { code, language, filename, model, temperature }
  */
 export async function handleSmartBugScan(req, res) {
   try {
-    const { code, language, filename, model } = req.body
+    const { code, language, filename, model, temperature } = req.body
     if (!code) return res.status(400).json({ error: 'code is required for scan' })
 
     const user = req.user?.id || req.user?.email || 'DevUser'
@@ -141,6 +143,7 @@ export async function handleSmartBugScan(req, res) {
       filename: filename || 'AppService.java',
       model,
       user,
+      temperature,
     })
 
     return res.json(result)
@@ -152,11 +155,11 @@ export async function handleSmartBugScan(req, res) {
 
 /**
  * POST /api/ai/generate-docs
- * Body: { docType, code, projectInfo, saveToDocs, model }
+ * Body: { docType, code, projectInfo, saveToDocs, model, temperature }
  */
 export async function handleGenerateDocs(req, res) {
   try {
-    const { docType = 'readme', code, projectInfo, saveToDocs = true, model } = req.body
+    const { docType = 'readme', code, projectInfo, saveToDocs = true, model, temperature } = req.body
     const user = req.user?.id || req.user?.email || 'DevUser'
 
     const { generateDocumentation } = await import('../services/aiService.js')
@@ -166,6 +169,7 @@ export async function handleGenerateDocs(req, res) {
       projectInfo,
       model,
       user,
+      temperature,
     })
 
     // If requested, save directly to the documentation store & MongoDB
@@ -193,11 +197,11 @@ export async function handleGenerateDocs(req, res) {
 
 /**
  * POST /api/ai/code-review
- * Body: { diff, prTitle, model }
+ * Body: { diff, prTitle, model, temperature }
  */
 export async function handleCodeReview(req, res) {
   try {
-    const { diff, prTitle, model } = req.body
+    const { diff, prTitle, model, temperature } = req.body
     if (!diff) return res.status(400).json({ error: 'diff is required for code review' })
 
     const user = req.user?.id || req.user?.email || 'DevUser'
@@ -207,11 +211,29 @@ export async function handleCodeReview(req, res) {
       prTitle: prTitle || 'PR #452',
       model,
       user,
+      temperature,
     })
 
     return res.json(result)
   } catch (err) {
     console.error('[Code Review Error]', err.message)
     return res.status(500).json({ error: 'Code review failed', details: err.message })
+  }
+}
+
+/**
+ * POST /api/ai/plan-tasks
+ * Body: { model, temperature, focus }
+ */
+export async function handlePlanTasks(req, res) {
+  try {
+    const { model, temperature, focus } = req.body || {}
+    const user = req.user?.id || req.user?.email || 'DevUser'
+    const { autoPlanTasks } = await import('../services/aiService.js')
+    const result = await autoPlanTasks({ model, user, temperature, focus })
+    return res.json(result)
+  } catch (err) {
+    console.error('[AI Plan Tasks Error]', err.message)
+    return res.status(500).json({ error: 'Task planning failed', details: err.message })
   }
 }

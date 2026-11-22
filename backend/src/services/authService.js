@@ -131,6 +131,17 @@ export async function loginUser({ email, password }) {
     user = findUserByEmail(cleanEmail)
   }
 
+  if (!user && cleanEmail === 'dev@example.com') {
+    const hashed = await hashPassword('password123')
+    user = createUser({
+      id: 'demo-dev-1',
+      email: 'dev@example.com',
+      password: hashed,
+      name: 'DevUser',
+      avatar: 'https://ui-avatars.com/api/?name=DevUser&background=7c6af7&color=fff',
+    })
+  }
+
   if (!user) throw new Error('Invalid email or password')
   if (!user.password) throw new Error('This account uses OAuth. Please sign in with GitHub or Google.')
 
