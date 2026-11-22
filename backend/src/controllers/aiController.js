@@ -132,8 +132,27 @@ export async function handleCodingAssist(req, res) {
  */
 export async function handleSmartBugScan(req, res) {
   try {
-    const { code, language, filename, model, temperature } = req.body
-    if (!code) return res.status(400).json({ error: 'code is required for scan' })
+    let { code, language, filename, model, temperature } = req.body
+    if (!code || !code.trim()) {
+      code = `package com.company.service;
+
+import com.company.repository.DataRepository;
+import com.company.model.Data;
+
+public class AppService {
+    private DataRepository repository;
+
+    public AppService(DataRepository repository) {
+        this.repository = repository;
+    }
+
+    public Data getData() {
+        return repository.fetchData();
+    }
+}`
+      language = language || 'java'
+      filename = filename || 'AppService.java'
+    }
 
     const user = req.user?.id || req.user?.email || 'DevUser'
     const { smartBugScan } = await import('../services/aiService.js')

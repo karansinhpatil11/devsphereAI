@@ -292,13 +292,17 @@ export default function AIAssistant() {
   const getActiveFileInfo = () => {
     const tab = activeEditorTab
     if (!tab || tab === 'welcome' || tab === 'compiler') {
-      return { name: 'untitled', lang: 'plaintext', code: '' }
+      const defaultFile = fileCache['AppService.java'] || fileCache['Main.js'] || Object.values(fileCache)[0]
+      if (defaultFile) {
+        return { name: defaultFile.name, lang: defaultFile.lang || detectLanguage(defaultFile.name), code: defaultFile.content || '' }
+      }
+      return { name: 'AppService.java', lang: 'java', code: '' }
     }
     const file = fileCache[tab]
     if (file) return { name: file.name, lang: file.lang || detectLanguage(file.name), code: file.content || '' }
     const key = Object.keys(fileCache).find((k) => k.toLowerCase() === tab.toLowerCase())
     if (key && fileCache[key]) return { name: fileCache[key].name, lang: fileCache[key].lang || detectLanguage(key), code: fileCache[key].content || '' }
-    return { name: tab, lang: 'plaintext', code: '' }
+    return { name: tab, lang: detectLanguage(tab), code: '' }
   }
 
   // ── 1. AI Coding Assistant Actions (Explain, Fix, Refactor, Tests) ─
@@ -586,8 +590,8 @@ export default function AIAssistant() {
   }
 
   // ── 5. Main Chat Send (Universal Autonomous Agent) ──
-  const handleSend = async () => {
-    const message = chatInput.trim()
+  const handleSend = async (overrideMessage = null) => {
+    const message = (typeof overrideMessage === 'string' ? overrideMessage : chatInput).trim()
     if (!message || isAiTyping || isCodingLoading) return
 
     setChatInput('')
@@ -966,9 +970,7 @@ export default function AIAssistant() {
                   ].map((preset) => (
                     <button
                       key={preset}
-                      onClick={() => {
-                        setChatInput(preset)
-                      }}
+                      onClick={() => handleSend(preset)}
                       className="text-left px-2.5 py-1.5 bg-ide-panel hover:bg-ide-border text-ide-text hover:text-ide-text-bright rounded-lg border border-ide-border/60 transition-colors cursor-pointer truncate"
                     >
                       💡 {preset}
