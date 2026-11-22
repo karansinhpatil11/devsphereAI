@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import dotenv from 'dotenv'
 import { executeMCPTool, ALL_MCP_TOOLS } from '../mcp/mcpClient.js'
-import { getAllTasks, createTask, updateTask, deleteTask, getAllIssues, getProjectProgress } from '../models/taskStore.js'
+import { getAllTasks, createTask, updateTask, deleteTask, getAllIssues, getProjectProgress, getProjectData } from '../models/taskStore.js'
 import { getAllDocs } from '../models/docStore.js'
 import { isDBConnected } from '../config/db.js'
 import { AISession, Activity } from '../models/schemas.js'
@@ -50,7 +50,6 @@ const MODEL_MAP = {
   'GPT-3.5 Turbo': 'gemini-1.5-flash',
 }
 
-import { getAllIssues, getProjectProgress, getProjectData } from '../models/taskStore.js'
 
 /**
  * Build dynamic project context for the AI Agent
