@@ -103,8 +103,12 @@ export async function generatePR(req, res) {
  */
 export async function handleCodingAssist(req, res) {
   try {
-    const { action, code, language, targetLanguage, prompt, model, temperature, filename } = req.body
+    const { action, targetLanguage, prompt, model, temperature } = req.body
     if (!action) return res.status(400).json({ error: 'action is required' })
+
+    const code = req.body.code || req.body.activeCode || ''
+    const language = req.body.language || req.body.activeLang || 'java'
+    const filename = req.body.filename || req.body.activeFile || ''
 
     const user = req.user?.id || req.user?.email || 'DevUser'
     const { codingAssistant } = await import('../services/aiService.js')
@@ -133,7 +137,11 @@ export async function handleCodingAssist(req, res) {
  */
 export async function handleSmartBugScan(req, res) {
   try {
-    let { code, language, filename, model, temperature } = req.body
+    let code = req.body.code || req.body.activeCode
+    let language = req.body.language || req.body.activeLang
+    let filename = req.body.filename || req.body.activeFile
+    const { model, temperature } = req.body
+
     if (!code || !code.trim()) {
       code = `package com.company.service;
 
@@ -160,7 +168,7 @@ public class AppService {
     const result = await smartBugScan({
       code,
       language: language || 'java',
-      filename: filename || 'AppService.java',
+      filename: filename || 'Main.java',
       model,
       user,
       temperature,

@@ -768,7 +768,9 @@ public class AppService {
     }
 }`
   const activeLang = language || 'java'
-  const targetFile = filename || (activeLang === 'java' ? 'AppService.java' : activeLang.includes('js') ? 'main.js' : 'app.py')
+  const foundClasses = [...activeCode.matchAll(/(?:abstract\s+)?(?:public\s+)?(?:class|interface|record|enum)\s+(\w+)/g)].map((m) => m[1])
+  const primaryFoundClass = foundClasses.find((c) => activeCode.includes(`public class ${c}`)) || foundClasses[foundClasses.length - 1] || foundClasses[0]
+  const targetFile = filename || (primaryFoundClass && activeLang === 'java' ? `${primaryFoundClass}.java` : activeLang === 'java' ? 'Main.java' : activeLang.includes('js') ? 'main.js' : 'app.py')
   const fallbackTitle = action === 'fix_bugs' ? `Bug Fixes (${activeLang})` :
     action === 'generate_tests' ? `Unit Tests (${activeLang})` :
     action === 'refactor' ? `Refactored ${activeLang} Code` :
