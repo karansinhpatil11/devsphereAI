@@ -15,20 +15,11 @@ import {
 import useStore from '../store/useStore'
 
 const VSCODE_LANGUAGES = [
+  { id: 'c', name: 'C', ext: 'c', file: 'main.c', icon: 'C', color: 'text-slate-300' },
+  { id: 'cpp', name: 'C++', ext: 'cpp', file: 'main.cpp', icon: 'C++', color: 'text-cyan-400' },
+  { id: 'java', name: 'Java', ext: 'java', file: 'Main.java', icon: '☕', color: 'text-orange-400' },
   { id: 'python', name: 'Python', ext: 'py', file: 'main.py', icon: 'PY', color: 'text-sky-400' },
   { id: 'javascript', name: 'JavaScript', ext: 'js', file: 'index.js', icon: 'JS', color: 'text-amber-300' },
-  { id: 'typescript', name: 'TypeScript', ext: 'ts', file: 'index.ts', icon: 'TS', color: 'text-blue-400' },
-  { id: 'java', name: 'Java', ext: 'java', file: 'Main.java', icon: '☕', color: 'text-orange-400' },
-  { id: 'cpp', name: 'C++', ext: 'cpp', file: 'main.cpp', icon: 'C++', color: 'text-cyan-400' },
-  { id: 'c', name: 'C', ext: 'c', file: 'main.c', icon: 'C', color: 'text-slate-300' },
-  { id: 'go', name: 'Go', ext: 'go', file: 'main.go', icon: 'GO', color: 'text-teal-400' },
-  { id: 'rust', name: 'Rust', ext: 'rs', file: 'main.rs', icon: 'RS', color: 'text-rose-400' },
-  { id: 'html', name: 'HTML', ext: 'html', file: 'index.html', icon: 'HTML', color: 'text-orange-500' },
-  { id: 'css', name: 'CSS', ext: 'css', file: 'styles.css', icon: 'CSS', color: 'text-blue-300' },
-  { id: 'json', name: 'JSON', ext: 'json', file: 'data.json', icon: '{}', color: 'text-yellow-400' },
-  { id: 'sql', name: 'SQL', ext: 'sql', file: 'query.sql', icon: 'SQL', color: 'text-indigo-400' },
-  { id: 'yaml', name: 'YAML', ext: 'yml', file: 'config.yml', icon: '⚙', color: 'text-purple-400' },
-  { id: 'markdown', name: 'Markdown', ext: 'md', file: 'README.md', icon: 'MD', color: 'text-ide-text' },
 ]
 
 const RECENT_FILES = [
@@ -76,7 +67,7 @@ export default function WelcomeScreen() {
                 type="text"
                 value={fileNameInput}
                 onChange={(e) => setFileNameInput(e.target.value)}
-                placeholder="Enter file name (e.g. main.py, app.js, UserService.java)..."
+                placeholder="Enter file name (e.g. main.c, main.cpp, Main.java, main.py, index.js)..."
                 className="flex-1 bg-transparent text-xs text-ide-text-bright outline-none font-mono"
                 autoFocus
                 onKeyDown={(e) => {

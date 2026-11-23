@@ -7,9 +7,9 @@ import {
 describe('Unit Testing: Compiler Controller & Languages', () => {
   it('should export all required supported languages with valid metadata', () => {
     assert.ok(Array.isArray(SUPPORTED_LANGUAGES))
-    assert.ok(SUPPORTED_LANGUAGES.length >= 8)
+    assert.strictEqual(SUPPORTED_LANGUAGES.length, 5)
 
-    const expectedLangs = ['javascript', 'python', 'java', 'cpp', 'c', 'typescript', 'go', 'rust']
+    const expectedLangs = ['c', 'cpp', 'java', 'python', 'javascript']
     const languageIds = SUPPORTED_LANGUAGES.map((l) => l.id)
 
     for (const id of expectedLangs) {

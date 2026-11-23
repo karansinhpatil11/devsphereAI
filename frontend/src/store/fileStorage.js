@@ -161,35 +161,20 @@ export const fileCache = { ...INITIAL_FILES }
 export function detectLanguage(filename = '') {
   const ext = filename.split('.').pop().toLowerCase()
   const map = {
-    js: 'javascript',
-    jsx: 'javascript',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    ts: 'typescript',
-    tsx: 'typescript',
-    py: 'python',
-    java: 'java',
+    c: 'c',
+    h: 'c',
     cpp: 'cpp',
     cc: 'cpp',
     cxx: 'cpp',
     hpp: 'cpp',
-    c: 'c',
-    h: 'c',
-    html: 'html',
-    htm: 'html',
-    css: 'css',
-    json: 'json',
-    go: 'go',
-    rs: 'rust',
-    sql: 'sql',
-    sh: 'bash',
-    bash: 'bash',
-    yml: 'yaml',
-    yaml: 'yaml',
-    xml: 'xml',
-    md: 'markdown',
+    java: 'java',
+    py: 'python',
+    js: 'javascript',
+    jsx: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
   }
-  return map[ext] || 'plaintext'
+  return map[ext] || 'c'
 }
 
 /**
@@ -198,33 +183,20 @@ export function detectLanguage(filename = '') {
 export function getBoilerplate(filename = '', targetLang = '') {
   const lang = targetLang || detectLanguage(filename)
   switch (lang) {
+    case 'c':
+      return `// ${filename || 'main.c'}\n#include <stdio.h>\n\nint main() {\n    printf("Hello from C in DevSphere AI Studio!\\n");\n    int a = 15, b = 27;\n    printf("Sum: %d\\n", a + b);\n    return 0;\n}\n`
+    case 'cpp':
+      return `// ${filename || 'main.cpp'}\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << "Hello from C++ in DevSphere AI Studio!" << std::endl;\n    std::vector<std::string> tools = {"VS Code UI", "Compiler", "Gemini AI"};\n    for (const auto& tool : tools) {\n        std::cout << "  • " << tool << std::endl;\n    }\n    return 0;\n}\n`
+    case 'java': {
+      const className = filename.replace(/\.[^.]+$/, '') || 'Main'
+      return `// ${filename || 'Main.java'}\npublic class ${className} {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java in DevSphere AI Studio!");\n    }\n}\n`
+    }
     case 'python':
       return `# ${filename || 'main.py'}\n"""\nDevSphere AI Python Script\n"""\n\ndef main():\n    print("Hello from Python in DevSphere AI Studio!")\n    numbers = [x * 2 for x in range(1, 6)]\n    print(f"Computed numbers: {numbers}")\n\nif __name__ == '__main__':\n    main()\n`
     case 'javascript':
       return `// ${filename || 'index.js'}\n/**\n * DevSphere AI JavaScript Script\n */\n\nfunction main() {\n  console.log("Hello from JavaScript in DevSphere AI Studio!");\n  const techStack = ["Node.js", "React", "Gemini 3.8", "Tailwind"];\n  console.log("Active Stack:", techStack.join(" • "));\n}\n\nmain();\n`
-    case 'typescript':
-      return `// ${filename || 'index.ts'}\ninterface Developer {\n  name: string;\n  role: string;\n  active: boolean;\n}\n\nconst dev: Developer = {\n  name: "DevSphere User",\n  role: "Full Stack AI Engineer",\n  active: true\n};\n\nconsole.log(\`Developer: \${dev.name} (\${dev.role})\`);\n`
-    case 'cpp':
-      return `// ${filename || 'main.cpp'}\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << "Hello from C++ in DevSphere AI Studio!" << std::endl;\n    std::vector<std::string> tools = {"VS Code UI", "Compiler", "Gemini AI"};\n    for (const auto& tool : tools) {\n        std::cout << "  • " << tool << std::endl;\n    }\n    return 0;\n}\n`
-    case 'c':
-      return `// ${filename || 'main.c'}\n#include <stdio.h>\n\nint main() {\n    printf("Hello from C in DevSphere AI Studio!\\n");\n    int a = 15, b = 27;\n    printf("Sum: %d\\n", a + b);\n    return 0;\n}\n`
-    case 'java':
-      const className = filename.replace(/\.[^.]+$/, '') || 'Main'
-      return `// ${filename || 'Main.java'}\npublic class ${className} {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java in DevSphere AI Studio!");\n    }\n}\n`
-    case 'go':
-      return `// ${filename || 'main.go'}\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from Go in DevSphere AI Studio!")\n}\n`
-    case 'rust':
-      return `// ${filename || 'main.rs'}\nfn main() {\n    println!("Hello from Rust in DevSphere AI Studio!");\n}\n`
-    case 'html':
-      return `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${filename || 'DevSphere Page'}</title>\n  <style>\n    body { font-family: system-ui, sans-serif; background: #0b1021; color: #fff; padding: 2rem; }\n  </style>\n</head>\n<body>\n  <h1>Welcome to DevSphere AI Studio</h1>\n  <p>Created with autonomous AI pair programming.</p>\n</body>\n</html>\n`
-    case 'css':
-      return `/* ${filename || 'styles.css'} */\n:root {\n  --primary: #6366f1;\n  --bg: #0b1021;\n}\n\nbody {\n  margin: 0;\n  padding: 0;\n  background-color: var(--bg);\n  color: #fff;\n}\n`
-    case 'json':
-      return `{\n  "name": "${filename.replace(/\.json$/, '') || 'app-config'}",\n  "version": "1.0.0",\n  "description": "DevSphere configuration",\n  "private": true\n}\n`
-    case 'sql':
-      return `-- ${filename || 'queries.sql'}\nSELECT id, name, email, created_at\nFROM users\nWHERE active = true\nORDER BY created_at DESC;\n`
     default:
-      return `// ${filename}\n// Created in DevSphere AI Studio\n`
+      return `// ${filename || 'main.c'}\n#include <stdio.h>\n\nint main() {\n    printf("Hello from C in DevSphere AI Studio!\\n");\n    return 0;\n}\n`
   }
 }
 

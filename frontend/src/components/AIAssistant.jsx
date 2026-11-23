@@ -209,20 +209,15 @@ function detectFileIntent(prompt) {
 
 function guessFilenameFromCode(code, language) {
   if (!code) return null
-  if (language === 'python' || language === 'py') return 'main.py'
-  if (language === 'javascript' || language === 'js') return 'index.js'
-  if (language === 'typescript' || language === 'ts') return 'index.ts'
+  if (language === 'c') return 'main.c'
+  if (language === 'cpp' || language === 'c++') return 'main.cpp'
   if (language === 'java') {
     const classMatch = code.match(/public\s+class\s+(\w+)/)
     if (classMatch) return `${classMatch[1]}.java`
     return 'Main.java'
   }
-  if (language === 'cpp' || language === 'c++') return 'main.cpp'
-  if (language === 'c') return 'main.c'
-  if (language === 'go') return 'main.go'
-  if (language === 'rust' || language === 'rs') return 'main.rs'
-  if (language === 'html') return 'index.html'
-  if (language === 'css') return 'styles.css'
+  if (language === 'python' || language === 'py') return 'main.py'
+  if (language === 'javascript' || language === 'js') return 'index.js'
   return null
 }
 

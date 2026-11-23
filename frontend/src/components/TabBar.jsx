@@ -137,7 +137,7 @@ export default function TabBar() {
                 type="text"
                 value={newFileName}
                 onChange={(e) => setNewFileName(e.target.value)}
-                placeholder="e.g. main.py, app.js, solution.cpp"
+                placeholder="e.g. main.c, main.cpp, Main.java, main.py, index.js"
                 autoFocus
                 className="w-full bg-ide-bg border border-ide-border rounded-lg px-2.5 py-1.5 text-xs text-ide-text-bright font-mono outline-none focus:border-ide-accent placeholder-ide-text/30"
               />
@@ -156,17 +156,11 @@ export default function TabBar() {
               </span>
               <div className="max-h-36 overflow-y-auto divide-y divide-ide-border/30">
                 {[
+                  { label: 'C', ext: 'c' },
+                  { label: 'C++', ext: 'cpp' },
+                  { label: 'Java', ext: 'java' },
                   { label: 'Python', ext: 'py' },
                   { label: 'JavaScript', ext: 'js' },
-                  { label: 'TypeScript', ext: 'ts' },
-                  { label: 'Java', ext: 'java' },
-                  { label: 'C++', ext: 'cpp' },
-                  { label: 'C', ext: 'c' },
-                  { label: 'Go', ext: 'go' },
-                  { label: 'Rust', ext: 'rs' },
-                  { label: 'HTML', ext: 'html' },
-                  { label: 'CSS', ext: 'css' },
-                  { label: 'JSON', ext: 'json' },
                 ].map((item) => (
                   <div
                     key={item.ext}

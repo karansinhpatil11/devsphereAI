@@ -30,11 +30,13 @@ export default function CodeEditor({ tabId }) {
 
   // Resolve matching file key dynamically
   const resolveFileKey = (id) => {
-    if (!id || id === 'welcome') return 'main.py'
+    if (!id || id === 'welcome') return 'Main.java'
     if (fileCache[id]) return id
+    if (fileCache[`${id}.c`]) return `${id}.c`
+    if (fileCache[`${id}.cpp`]) return `${id}.cpp`
+    if (fileCache[`${id}.java`]) return `${id}.java`
     if (fileCache[`${id}.py`]) return `${id}.py`
     if (fileCache[`${id}.js`]) return `${id}.js`
-    if (fileCache[`${id}.java`]) return `${id}.java`
     const found = Object.keys(fileCache).find((k) => k.toLowerCase() === id.toLowerCase() || k.toLowerCase().startsWith(id.toLowerCase()))
     return found || id
   }
@@ -176,9 +178,23 @@ export default function CodeEditor({ tabId }) {
           <span className="text-[10px] text-ide-text/40 hidden sm:inline">
             ({currentFile.path})
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold bg-ide-accent/15 text-ide-accent border border-ide-accent/30">
-            {currentFile.lang}
-          </span>
+          <select
+            value={currentFile.lang || 'c'}
+            onChange={(e) => {
+              const newLang = e.target.value
+              currentFile.lang = newLang
+              if (window.__ideActiveCode) window.__ideActiveCode.lang = newLang
+              setCode((prev) => prev)
+            }}
+            className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold bg-ide-accent/15 text-ide-accent border border-ide-accent/30 outline-none cursor-pointer hover:border-ide-accent transition-colors"
+            title="Language Mode (C, C++, Java, Python, JavaScript)"
+          >
+            <option value="c" className="bg-[#0b1021] text-ide-text">C</option>
+            <option value="cpp" className="bg-[#0b1021] text-ide-text">C++</option>
+            <option value="java" className="bg-[#0b1021] text-ide-text">Java</option>
+            <option value="python" className="bg-[#0b1021] text-ide-text">Python</option>
+            <option value="javascript" className="bg-[#0b1021] text-ide-text">JavaScript</option>
+          </select>
           <span className="text-[10px] text-ide-text/40">({lines.length} lines)</span>
           {saved && (
             <span className="text-[10px] text-ide-green flex items-center gap-1 animate-pulse">

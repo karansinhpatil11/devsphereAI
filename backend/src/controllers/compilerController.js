@@ -5,31 +5,15 @@ import os from 'os'
 import axios from 'axios'
 import { callGeminiDirect } from '../services/aiService.js'
 
-// Known language aliases & templates
+// Known language aliases & templates - limited to C, C++, Java, Python, JavaScript
 export const SUPPORTED_LANGUAGES = [
   {
-    id: 'javascript',
-    name: 'JavaScript (Node.js)',
-    version: 'Node.js v25',
-    extension: 'js',
-    icon: 'JS',
-    color: '#f7df1e',
-  },
-  {
-    id: 'python',
-    name: 'Python 3',
-    version: 'Python 3.11',
-    extension: 'py',
-    icon: 'PY',
-    color: '#3776ab',
-  },
-  {
-    id: 'java',
-    name: 'Java 17',
-    version: 'OpenJDK 17',
-    extension: 'java',
-    icon: '☕',
-    color: '#ea2d2e',
+    id: 'c',
+    name: 'C',
+    version: 'GCC 11 (C11)',
+    extension: 'c',
+    icon: 'C',
+    color: '#a8b9cc',
   },
   {
     id: 'cpp',
@@ -40,36 +24,28 @@ export const SUPPORTED_LANGUAGES = [
     color: '#00599c',
   },
   {
-    id: 'c',
-    name: 'C',
-    version: 'GCC 11 (C11)',
-    extension: 'c',
-    icon: 'C',
-    color: '#a8b9cc',
+    id: 'java',
+    name: 'Java 17',
+    version: 'OpenJDK 17',
+    extension: 'java',
+    icon: '☕',
+    color: '#ea2d2e',
   },
   {
-    id: 'typescript',
-    name: 'TypeScript',
-    version: 'TypeScript 5.3',
-    extension: 'ts',
-    icon: 'TS',
-    color: '#3178c6',
+    id: 'python',
+    name: 'Python 3',
+    version: 'Python 3.11',
+    extension: 'py',
+    icon: 'PY',
+    color: '#3776ab',
   },
   {
-    id: 'go',
-    name: 'Go',
-    version: 'Go 1.21',
-    extension: 'go',
-    icon: 'GO',
-    color: '#00add8',
-  },
-  {
-    id: 'rust',
-    name: 'Rust',
-    version: 'Rust 1.75',
-    extension: 'rs',
-    icon: 'RS',
-    color: '#dea584',
+    id: 'javascript',
+    name: 'JavaScript (Node.js)',
+    version: 'Node.js v25',
+    extension: 'js',
+    icon: 'JS',
+    color: '#f7df1e',
   },
 ]
 
@@ -661,23 +637,21 @@ export async function executeCode(req, res) {
     }
 
     const normLang = language.toLowerCase().trim()
+    const allowed = ['c', 'cpp', 'c++', 'java', 'python', 'py', 'javascript', 'js']
+    if (!allowed.includes(normLang)) {
+      return res.status(400).json({
+        error: `Unsupported language: '${language}'. DevSphere Code only supports C, C++, Java, Python, and JavaScript.`,
+      })
+    }
+
     let result = null
 
     // ── 1. Native local execution ───────────────────────────────
-    if (normLang === 'javascript' || normLang === 'js' || normLang === 'typescript' || normLang === 'ts') {
+    if (normLang === 'javascript' || normLang === 'js') {
       try {
-        let jsCode = code
-        if (normLang === 'typescript' || normLang === 'ts') {
-          // Strip TypeScript type annotations for Node.js execution
-          jsCode = code
-            .replace(/:\s*\w+(\[\])?\s*(?=[;,=)\n{])/g, '')
-            .replace(/\binterface\s+\w+\s*\{[^}]*\}/g, '')
-            .replace(/\btype\s+\w+\s*=\s*[^;]+;/g, '')
-            .replace(/<\w+(\[\])?>/g, '')
-        }
-        result = await runNodeNative(jsCode, stdin)
+        result = await runNodeNative(code, stdin)
         if (result) {
-          result.runner = normLang === 'typescript' || normLang === 'ts' ? 'native-node-ts' : 'native-node'
+          result.runner = 'native-node'
         }
       } catch (nativeErr) {
         console.error('[Native Node Error]', nativeErr.message)

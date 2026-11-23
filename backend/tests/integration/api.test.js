@@ -84,7 +84,7 @@ describe('Integration Testing: Complete API & Services Flow', () => {
     const data = await res.json()
     const languages = data.languages || data
     assert.ok(Array.isArray(languages))
-    assert.ok(languages.length >= 7)
+    assert.strictEqual(languages.length, 5)
     const jsLang = languages.find((l) => l.id === 'javascript')
     assert.ok(jsLang)
     assert.equal(jsLang.extension, 'js')

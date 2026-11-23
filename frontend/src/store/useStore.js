@@ -33,7 +33,7 @@ const useStore = create((set, get) => ({
       content: `👋 **Welcome to DevSphere AI Studio!** I am your autonomous AI developer agent.
 
 You can ask me to:
-• **Create new files** in Python, JavaScript, TypeScript, C++, Java, Go, Rust (e.g. \`create app.py with a flask server\`)
+• **Create new files** in C, C++, Java, Python, and JavaScript (e.g. \`create main.py\`, \`create Main.java\`, \`create main.cpp\`)
 • **Open & modify repository files** (e.g. \`add caching to AppService.java\`)
 • **Refactor, optimize, or test** active code in the editor
 
