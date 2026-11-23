@@ -1,42 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import useStore from '../store/useStore'
-import useAuthStore from '../store/authStore'
-import { authAPI } from '../services/api'
-import {
-  Home,
-  Building2,
-  FileText,
-  Users,
-  Grid,
-  TrendingUp,
-  Bell,
-  Megaphone,
-  CreditCard,
-  Settings,
-  LogOut,
-  Search,
-  Terminal as TerminalIcon,
-  ChevronDown,
-  X,
-  Code2,
-  Bot,
-  Sparkles,
-  CheckSquare,
-  BookOpen,
-  GitPullRequest,
-  Globe,
-  RefreshCw,
-} from 'lucide-react'
-
-import ProtocolDashboard from '../components/ProtocolDashboard'
-import CompilerView from '../components/CompilerView'
-import AIAssistant from '../components/AIAssistant'
-import TaskPanel from '../components/TaskPanel'
-import DocPanel from '../components/DocPanel'
-import SettingsPanel from '../components/SettingsPanel'
+import React from 'react'
+import ActivityBar from '../components/ActivityBar'
 import Sidebar from '../components/Sidebar'
 import TabBar from '../components/TabBar'
+import AIAssistant from '../components/AIAssistant'
+import useStore from '../store/useStore'
+import { Globe, RefreshCw, ChevronDown, Terminal as TerminalIcon, X, Bug, ListChecks } from 'lucide-react'
+
 import CodeEditor from '../components/CodeEditor'
 import Terminal from '../components/Terminal'
 import WelcomeScreen from '../components/WelcomeScreen'
@@ -48,6 +17,7 @@ function EditorArea() {
     return <WelcomeScreen />
   }
 
+  // Render file editor for selected file tabs
   return <CodeEditor tabId={activeEditorTab} />
 }
 
@@ -190,17 +160,14 @@ function BottomPanel({ visible, onToggle, onClose, activeBottomTab, setActiveBot
 }
 
 export default function IDELayout() {
-  const navigate = useNavigate()
-  const { user, isAuthenticated, logout } = useAuthStore()
-  const { currentView, setCurrentView } = useStore()
+  const { setActiveEditorTab, openTabs, activeEditorTab, activeRepoName } = useStore()
+  const [fullscreen, setFullscreen] = React.useState(false)
+  const [showBottomPanel, setShowBottomPanel] = React.useState(false)
+  const [activeBottomTab, setActiveBottomTab] = React.useState('terminal')
+  const [compilerOutput, setCompilerOutput] = React.useState(null)
 
-  const [showBottomPanel, setShowBottomPanel] = useState(false)
-  const [activeBottomTab, setActiveBottomTab] = useState('terminal')
-  const [compilerOutput, setCompilerOutput] = useState(null)
-  const [headerSearch, setHeaderSearch] = useState('')
-
-  // Expose compiler output trigger to bottom panel
-  useEffect(() => {
+  // Expose a way for CodeEditor to send output to the bottom panel
+  React.useEffect(() => {
     window.__ideSetCompilerOutput = (output) => {
       setCompilerOutput(output)
       setShowBottomPanel(true)
@@ -209,8 +176,8 @@ export default function IDELayout() {
     return () => { delete window.__ideSetCompilerOutput }
   }, [])
 
-  // Ctrl+` keyboard shortcut for terminal
-  useEffect(() => {
+  // Ctrl+` keyboard shortcut to toggle terminal/bottom panel
+  React.useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === '`') {
         e.preventDefault()
@@ -221,254 +188,104 @@ export default function IDELayout() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handleSignOut = async () => {
-    try {
-      await authAPI.logout()
-    } catch {}
-    logout()
-    navigate('/login')
+  const handleRefresh = () => {
+    window.location.reload()
   }
 
-  // ── Navigation Items (Exact from Reference Image) ────────────────────
-  const navMenuItems = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      icon: Home,
-      targetView: 'dashboard',
-    },
-    {
-      id: 'department',
-      label: 'Department',
-      icon: Building2,
-      targetView: 'editor',
-    },
-    {
-      id: 'accounting',
-      label: 'Accounting and Finance',
-      icon: FileText,
-      targetView: 'compiler',
-    },
-    {
-      id: 'employee',
-      label: 'Employee',
-      icon: Users,
-      targetView: 'ai_assistant',
-    },
-    {
-      id: 'token',
-      label: 'Token',
-      icon: Grid,
-      targetView: 'tasks',
-    },
-    {
-      id: 'attendance',
-      label: 'Attendance',
-      icon: TrendingUp,
-      targetView: 'dashboard',
-    },
-    {
-      id: 'notification',
-      label: 'Notification',
-      icon: Bell,
-      targetView: 'docs',
-    },
-    {
-      id: 'announcement',
-      label: 'Announcement',
-      icon: Megaphone,
-      targetView: 'github',
-    },
-    {
-      id: 'billing',
-      label: 'Billing',
-      icon: CreditCard,
-      targetView: 'settings',
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      targetView: 'settings',
-    },
-  ]
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.()
+      setFullscreen(true)
+    } else {
+      document.exitFullscreen?.()
+      setFullscreen(false)
+    }
+  }
 
   return (
-    <div className="w-screen h-screen bg-[#d8e7f3] p-3 md:p-5 flex items-center justify-center overflow-hidden font-sans select-none">
-      {/* ── Main Application Container (Curved card with shadow) ──────── */}
-      <div className="w-full h-full bg-white rounded-3xl shadow-2xl border border-[#c6dcee] flex overflow-hidden">
-        {/* ── Left Sidebar: Deep Navy Blue Theme ──────────────────────── */}
-        <aside className="w-60 bg-[#093557] text-white p-5 flex flex-col justify-between shrink-0 select-none shadow-md z-20">
-          <div>
-            {/* Logo Brand Header */}
-            <div className="flex items-center gap-3 mb-6 pl-1">
-              <div className="w-9 h-9 rounded-full bg-[#05233a] border border-white/20 flex items-center justify-center font-bold text-white shadow-inner">
-                <span className="text-base font-black tracking-tight">P</span>
-              </div>
-              <div className="font-bold text-[15px] tracking-wide text-white">
-                Micon Protocol
-              </div>
-            </div>
-
-            {/* Navigation Menu Links */}
-            <nav className="space-y-1">
-              {navMenuItems.map((item) => {
-                const Icon = item.icon
-                const isActive = currentView === item.targetView
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setCurrentView(item.targetView)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 text-xs font-medium rounded-full transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-white text-[#093557] font-semibold shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <Icon size={16} strokeWidth={isActive ? 2.2 : 1.75} className="shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                )
-              })}
-            </nav>
-          </div>
-
-          {/* Bottom Log Out Section */}
-          <div className="pt-4 border-t border-white/10">
+    <div className="flex flex-col h-screen overflow-hidden bg-ide-bg">
+      {/* Top Title Bar */}
+      <div className="flex items-center justify-between px-4 h-9 bg-ide-sidebar border-b border-ide-border shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          {/* Traffic lights with functionality */}
+          <div className="flex gap-1.5 items-center">
             <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-3.5 py-2 text-xs font-medium text-white/80 hover:text-rose-300 hover:bg-rose-500/10 rounded-full transition-colors cursor-pointer"
-            >
-              <LogOut size={16} strokeWidth={1.75} />
-              <span>Log Out</span>
-            </button>
+              onClick={() => window.close()}
+              title="Close workspace"
+              className="w-3 h-3 rounded-full bg-[#ff5f57] hover:brightness-110 cursor-pointer"
+            />
+            <button
+              onClick={() => setShowBottomPanel(!showBottomPanel)}
+              title="Toggle Panel"
+              className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 cursor-pointer"
+            />
+            <button
+              onClick={toggleFullscreen}
+              title="Toggle Fullscreen"
+              className="w-3 h-3 rounded-full bg-[#28c840] hover:brightness-110 cursor-pointer"
+            />
           </div>
-        </aside>
-
-        {/* ── Right Content Area ──────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#eef5fa]">
-          {/* Top Header Bar */}
-          <header className="h-14 px-6 flex items-center justify-between bg-transparent shrink-0">
-            {/* Search Pill Input */}
-            <div className="relative w-72">
-              <input
-                type="text"
-                placeholder="Search here"
-                value={headerSearch}
-                onChange={(e) => setHeaderSearch(e.target.value)}
-                className="w-full bg-[#d7e7f2] text-slate-700 text-xs pl-4 pr-9 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-[#093557]/20 placeholder-slate-400"
-              />
-              <Search
-                size={14}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-              />
-            </div>
-
-            {/* User Profile Info */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-slate-700">
-                {isAuthenticated && user?.name ? user.name : 'Alex Tori'}
-              </span>
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 border border-slate-300 shadow-sm cursor-pointer hover:ring-2 hover:ring-[#093557]/20 transition-all">
-                <img
-                  src={
-                    isAuthenticated && user?.avatar
-                      ? user.avatar
-                      : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces'
-                  }
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = 'https://ui-avatars.com/api/?name=Alex+Tori&background=093557&color=fff'
-                  }}
-                />
-              </div>
-            </div>
-          </header>
-
-          {/* ── Dynamic Main View Content ─────────────────────────────── */}
-          <main className="flex-1 overflow-hidden flex flex-col">
-            {/* 1. Protocol Dashboard (Matches User's Screenshot) */}
-            {currentView === 'dashboard' && (
-              <ProtocolDashboard onNavigateView={(view) => setCurrentView(view)} />
-            )}
-
-            {/* 2. Code Studio (Department / Editor) */}
-            {currentView === 'editor' && (
-              <div className="flex-1 flex overflow-hidden">
-                <Sidebar />
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <TabBar />
-                  <div className="flex-1 overflow-hidden">
-                    <EditorArea />
-                  </div>
-                  <BottomPanel
-                    visible={showBottomPanel}
-                    onToggle={() => setShowBottomPanel(!showBottomPanel)}
-                    onClose={() => setShowBottomPanel(false)}
-                    activeBottomTab={activeBottomTab}
-                    setActiveBottomTab={setActiveBottomTab}
-                    compilerOutput={compilerOutput}
-                  />
-                </div>
-                <AIAssistant />
-              </div>
-            )}
-
-            {/* 3. Compiler Hub (Accounting & Finance) */}
-            {currentView === 'compiler' && (
-              <div className="flex-1 overflow-auto bg-[#1a1b26] p-4">
-                <CompilerView />
-              </div>
-            )}
-
-            {/* 4. AI Agent Chat (Employee) */}
-            {currentView === 'ai_assistant' && (
-              <div className="flex-1 flex overflow-hidden">
-                <AIAssistant />
-              </div>
-            )}
-
-            {/* 5. Task Tracker (Token) */}
-            {currentView === 'tasks' && (
-              <div className="flex-1 overflow-auto bg-[#1a1b26] p-6">
-                <div className="max-w-4xl mx-auto">
-                  <TaskPanel />
-                </div>
-              </div>
-            )}
-
-            {/* 6. Documentation (Notification) */}
-            {currentView === 'docs' && (
-              <div className="flex-1 overflow-auto bg-[#1a1b26] p-6">
-                <div className="max-w-4xl mx-auto">
-                  <DocPanel />
-                </div>
-              </div>
-            )}
-
-            {/* 7. Settings & Billing */}
-            {currentView === 'settings' && (
-              <div className="flex-1 overflow-auto bg-[#1a1b26] p-6">
-                <div className="max-w-3xl mx-auto">
-                  <SettingsPanel />
-                </div>
-              </div>
-            )}
-
-            {/* 8. Announcement / GitHub */}
-            {currentView === 'github' && (
-              <div className="flex-1 flex overflow-hidden">
-                <Sidebar />
-                <div className="flex-1 overflow-hidden">
-                  <EditorArea />
-                </div>
-              </div>
-            )}
-          </main>
         </div>
+
+        {/* URL / Workspace bar */}
+        <div className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 flex-1 mx-6 max-w-sm">
+          <Globe size={11} className="text-ide-text/50 shrink-0" />
+          <span className="text-xs text-ide-text/70 truncate">
+            {`devsphere://${activeRepoName || 'workspace'}/${activeEditorTab || 'welcome'}`}
+          </span>
+          <button
+            onClick={handleRefresh}
+            title="Reload IDE"
+            className="ml-auto text-ide-text/50 hover:text-ide-text-bright cursor-pointer"
+          >
+            <RefreshCw size={11} className="shrink-0" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 text-ide-text/50">
+          <button
+            onClick={() => {
+              setShowBottomPanel(true)
+              setActiveBottomTab('terminal')
+            }}
+            title="Toggle Terminal (Ctrl + `)"
+            className={`text-xs hover:text-ide-text-bright cursor-pointer flex items-center gap-1 ${
+              showBottomPanel && activeBottomTab === 'terminal' ? 'text-ide-accent font-semibold' : ''
+            }`}
+          >
+            <TerminalIcon size={11} />
+            Terminal
+          </button>
+        </div>
+      </div>
+
+      {/* Main Layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Activity Bar */}
+        <ActivityBar />
+
+        {/* Sidebar File Tree */}
+        <Sidebar />
+
+        {/* Editor + Tabs + Bottom Panel */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <TabBar />
+          <div className="flex-1 overflow-hidden">
+            <EditorArea />
+          </div>
+          {/* VS Code-style bottom panel */}
+          <BottomPanel
+            visible={showBottomPanel}
+            onToggle={() => setShowBottomPanel(!showBottomPanel)}
+            onClose={() => setShowBottomPanel(false)}
+            activeBottomTab={activeBottomTab}
+            setActiveBottomTab={setActiveBottomTab}
+            compilerOutput={compilerOutput}
+          />
+        </div>
+
+        {/* AI Assistant Panel */}
+        <AIAssistant />
       </div>
     </div>
   )

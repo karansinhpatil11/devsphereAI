@@ -76,4 +76,3 @@ describe('Unit Testing: Task Store & Project Progress', () => {
     assert.ok(progress.activeMilestone)
   })
 })
-

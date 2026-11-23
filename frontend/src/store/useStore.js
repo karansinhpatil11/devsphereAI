@@ -3,7 +3,6 @@ import { getOrCreateFile, setCachedFile, detectLanguage, fileCache } from './fil
 
 const useStore = create((set, get) => ({
   // ── UI State ──────────────────────────────────────────
-  currentView: 'dashboard',
   activeTab: 'pr',
   sidebarSection: 'repositories',
 
@@ -49,7 +48,6 @@ How can I help you build today?`,
   mcpConnected: true,
 
   // ── Actions ───────────────────────────────────────────
-  setCurrentView: (view) => set({ currentView: view }),
   setAiTemperature: (temperature) => set({ aiTemperature: temperature }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),
