@@ -41,6 +41,7 @@ import {
   reviewCodePR,
   generatePRDescription,
   githubAPI,
+  docAPI,
 } from '../services/api'
 
 // ── Code Block Component ─────────────────────────────
@@ -1379,7 +1380,26 @@ export default function AIAssistant() {
                     }}
                     className="flex-1 py-1.5 bg-ide-purple hover:bg-ide-purple/80 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                   >
-                    Open in Doc Panel →
+                    Open in Docs →
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const docId = generatedDoc.savedId || generatedDoc.id
+                      if (docId) {
+                        try {
+                          await docAPI.deleteDoc(docId)
+                        } catch (err) {
+                          console.error('Failed to delete doc:', err)
+                        }
+                      }
+                      setGeneratedDoc(null)
+                      setDocSaved(false)
+                    }}
+                    className="py-1.5 px-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1 border border-rose-500/20"
+                    title="Delete Generated Document"
+                  >
+                    <Trash2 size={12} />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>

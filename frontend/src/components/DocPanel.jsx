@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { docAPI, generateDocs } from '../services/api'
-import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft, Sparkles, Loader2 } from 'lucide-react'
+import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft, Sparkles, Loader2, Trash2 } from 'lucide-react'
 
 export default function DocPanel() {
   const [docs, setDocs] = useState([])
@@ -23,6 +23,20 @@ export default function DocPanel() {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteDoc = async (id, e) => {
+    if (e) e.stopPropagation()
+    if (!window.confirm('Are you sure you want to delete this document?')) return
+    try {
+      await docAPI.deleteDoc(id)
+      setDocs((prev) => prev.filter((d) => d.id !== id))
+      if (selectedDoc && selectedDoc.id === id) {
+        setSelectedDoc(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete doc:', err)
     }
   }
 
@@ -85,9 +99,19 @@ export default function DocPanel() {
             <ArrowLeft size={13} />
             <span>All Docs</span>
           </button>
-          <span className="text-[10px] text-ide-accent bg-ide-accent/10 px-2 py-0.5 rounded-full">
-            {selectedDoc.category}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-ide-accent bg-ide-accent/10 px-2 py-0.5 rounded-full font-medium">
+              {selectedDoc.category}
+            </span>
+            <button
+              onClick={(e) => handleDeleteDoc(selectedDoc.id, e)}
+              className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-0.5 rounded transition-colors cursor-pointer border border-rose-500/20"
+              title="Delete Document"
+            >
+              <Trash2 size={12} />
+              <span>Delete</span>
+            </button>
+          </div>
         </div>
 
         {/* Document Content View */}
@@ -241,14 +265,23 @@ export default function DocPanel() {
             onClick={() => setSelectedDoc(doc)}
             className="p-2.5 rounded-xl bg-ide-panel border border-ide-border hover:border-ide-accent/40 transition-all cursor-pointer group flex items-center justify-between"
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
               <FileText size={14} className="text-ide-accent shrink-0" />
               <div className="min-w-0">
                 <p className="font-medium text-xs text-ide-text-bright truncate">{doc.title}</p>
                 <p className="text-[10px] text-ide-text/40">{doc.category}</p>
               </div>
             </div>
-            <ChevronRight size={13} className="text-ide-text/30 group-hover:text-ide-accent transition-colors shrink-0" />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={(e) => handleDeleteDoc(doc.id, e)}
+                title="Delete Document"
+                className="p-1 rounded text-ide-text/30 hover:text-rose-400 hover:bg-rose-500/15 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+              >
+                <Trash2 size={13} />
+              </button>
+              <ChevronRight size={13} className="text-ide-text/30 group-hover:text-ide-accent transition-colors shrink-0" />
+            </div>
           </div>
         ))}
       </div>
