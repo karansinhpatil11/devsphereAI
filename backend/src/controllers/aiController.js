@@ -85,8 +85,9 @@ export async function analyzeCodeDiff(req, res) {
  */
 export async function generatePR(req, res) {
   try {
-    const { changes, model, temperature } = req.body
-    if (!changes) return res.status(400).json({ error: 'changes are required' })
+    const changes = req.body.changes || req.body.diff
+    const { model, temperature } = req.body
+    if (!changes) return res.status(400).json({ error: 'changes or diff are required' })
 
     const result = await generatePRDescription(changes, model, req.user?.id || req.user?.email || 'DevUser', temperature)
     return res.json(result)

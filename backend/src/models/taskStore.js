@@ -358,6 +358,7 @@ export function getProjectData() {
     branch: 'main',
     framework: 'Spring Boot 3.2',
     language: 'Java 17',
+    architecture: 'Microservices & Event-Driven Architecture',
     buildTool: 'Maven',
     dependencies: [
       'spring-boot-starter-web',

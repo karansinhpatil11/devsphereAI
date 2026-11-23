@@ -19,7 +19,7 @@ export const comparePassword = (pw, hash) => bcrypt.compare(pw, hash)
 export function generateTokens(user) {
   const payload = { sub: user.id, email: user.email, role: user.role }
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
-  const refreshToken = jwt.sign({ sub: user.id }, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN })
+  const refreshToken = jwt.sign({ sub: user.id, jti: uuidv4() }, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN })
   saveRefreshToken(refreshToken)
   return { accessToken, refreshToken }
 }

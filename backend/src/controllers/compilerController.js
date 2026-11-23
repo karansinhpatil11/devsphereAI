@@ -179,85 +179,98 @@ try {
 /**
  * Execute Python code natively using local Python interpreter
  */
-function runPythonNative(code, stdin = '', timeout = 10000) {
-  return new Promise((resolve) => {
-    // Try to find Python executable
-    const pythonCandidates = process.platform === 'win32'
-      ? ['python', 'python3', 'py']
-      : ['python3', 'python']
+async function runPythonNative(code, stdin = '', timeout = 10000) {
+  const pythonCandidates = process.platform === 'win32'
+    ? ['py', 'python', 'python3']
+    : ['python3', 'python']
 
-    const tmpDir = os.tmpdir()
-    const tmpFile = path.join(tmpDir, `devsphere_run_${Date.now()}_${Math.random().toString(36).slice(2)}.py`)
+  const tmpDir = os.tmpdir()
+  const tmpFile = path.join(tmpDir, `devsphere_run_${Date.now()}_${Math.random().toString(36).slice(2)}.py`)
 
-    try {
-      fs.writeFileSync(tmpFile, code, 'utf8')
-    } catch (e) {
-      return resolve({
-        success: false,
-        status: 'RUNTIME_ERROR',
-        stdout: '',
-        stderr: `Failed to create temporary file: ${e.message}`,
-        exitCode: 1,
+  try {
+    fs.writeFileSync(tmpFile, code, 'utf8')
+  } catch (e) {
+    return {
+      success: false,
+      status: 'RUNTIME_ERROR',
+      stdout: '',
+      stderr: `Failed to create temporary file: ${e.message}`,
+      exitCode: 1,
+    }
+  }
+
+  for (const pythonPath of pythonCandidates) {
+    const outcome = await new Promise((resolve) => {
+      const startTime = Date.now()
+      let stdout = ''
+      let stderr = ''
+      let errored = false
+
+      const child = spawn(pythonPath, [tmpFile], {
+        timeout,
+        env: { ...process.env },
       })
-    }
 
-    const startTime = Date.now()
-    const pythonPath = pythonCandidates[0] // Use first candidate
-
-    const child = spawn(pythonPath, [tmpFile], {
-      timeout,
-      env: { ...process.env },
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    if (stdin) {
-      child.stdin.write(stdin)
-      child.stdin.end()
-    }
-
-    child.stdout.on('data', (data) => {
-      stdout += data.toString()
-      if (stdout.length > 50000) child.kill('SIGKILL')
-    })
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString()
-      if (stderr.length > 50000) child.kill('SIGKILL')
-    })
-
-    child.on('error', (err) => {
-      try { fs.unlinkSync(tmpFile) } catch {}
-      resolve(null) // Return null to signal native execution failed, try other methods
-    })
-
-    child.on('close', (exitCode, signal) => {
-      try { fs.unlinkSync(tmpFile) } catch {}
-      const timeMs = Date.now() - startTime
-
-      if (signal === 'SIGTERM' || timeMs >= timeout) {
-        return resolve({
-          success: false,
-          status: 'TIMEOUT',
-          stdout,
-          stderr: `Execution timed out after ${timeout}ms. Possible infinite loop.`,
-          exitCode: 124,
-          executionTimeMs: timeMs,
-        })
+      if (stdin) {
+        child.stdin.write(stdin)
+        child.stdin.end()
       }
 
-      resolve({
-        success: exitCode === 0,
-        status: exitCode === 0 ? 'SUCCESS' : 'RUNTIME_ERROR',
-        stdout,
-        stderr,
-        exitCode: exitCode ?? 0,
-        executionTimeMs: timeMs,
-        runner: 'native-python',
+      child.stdout.on('data', (data) => {
+        stdout += data.toString()
+        if (stdout.length > 50000) child.kill('SIGKILL')
+      })
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString()
+        if (stderr.length > 50000) child.kill('SIGKILL')
+      })
+
+      child.on('error', () => {
+        errored = true
+        resolve(null)
+      })
+
+      child.on('close', (exitCode, signal) => {
+        if (errored) return
+        const timeMs = Date.now() - startTime
+
+        // Windows Store App Execution Alias stub returns 9009 or "Python was not found"
+        if (exitCode === 9009 || (stderr && (stderr.includes('Python was not found') || stderr.includes('not recognized')))) {
+          return resolve(null)
+        }
+
+        if (signal === 'SIGTERM' || timeMs >= timeout) {
+          return resolve({
+            success: false,
+            status: 'TIMEOUT',
+            stdout,
+            stderr: `Execution timed out after ${timeout}ms. Possible infinite loop.`,
+            exitCode: 124,
+            executionTimeMs: timeMs,
+          })
+        }
+
+        resolve({
+          success: exitCode === 0,
+          status: exitCode === 0 ? 'SUCCESS' : 'RUNTIME_ERROR',
+          stdout,
+          stderr,
+          exitCode: exitCode ?? 0,
+          executionTimeMs: timeMs,
+          runner: `native-${pythonPath}`,
+        })
       })
     })
-  })
+
+    if (outcome) {
+      try { fs.unlinkSync(tmpFile) } catch {}
+      return outcome
+    }
+  }
+
+  try { fs.unlinkSync(tmpFile) } catch {}
+  return null
 }
 
 /**
