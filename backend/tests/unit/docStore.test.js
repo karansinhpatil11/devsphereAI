@@ -76,3 +76,4 @@ describe('Unit Testing: Documentation Store', () => {
     assert.equal(notFound, null)
   })
 })
+
