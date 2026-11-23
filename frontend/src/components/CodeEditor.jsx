@@ -49,6 +49,12 @@ export default function CodeEditor({ tabId }) {
     const key = resolveFileKey(tabId)
     const file = fileCache[key] || getOrCreateFile(key)
     setCode(file.content)
+    window.__ideActiveCode = {
+      name: file.name,
+      fileKey: key,
+      lang: file.lang || detectLanguage(file.name),
+      content: file.content,
+    }
   }, [tabId, activeRepoName])
 
   // Sync editor content on AI or external file update
@@ -57,6 +63,12 @@ export default function CodeEditor({ tabId }) {
       const file = fileCache[currentFile.name] || fileCache[fileKey]
       if (file) {
         setCode(file.content)
+        window.__ideActiveCode = {
+          name: file.name,
+          fileKey,
+          lang: file.lang || detectLanguage(file.name),
+          content: file.content,
+        }
         setSaved(true)
         setTimeout(() => setSaved(false), 2500)
       }
@@ -75,6 +87,12 @@ export default function CodeEditor({ tabId }) {
       }
     } else {
       fileCache[fileKey].content = val
+    }
+    window.__ideActiveCode = {
+      name: currentFile.name,
+      fileKey,
+      lang: currentFile.lang,
+      content: val,
     }
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)

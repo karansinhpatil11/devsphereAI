@@ -290,17 +290,26 @@ export default function AIAssistant() {
 
   // Get active file info dynamically from editor
   const getActiveFileInfo = () => {
+    // If the active editor has live code in window.__ideActiveCode, prioritize it
+    if (window.__ideActiveCode && window.__ideActiveCode.content) {
+      return {
+        name: window.__ideActiveCode.name,
+        lang: window.__ideActiveCode.lang || detectLanguage(window.__ideActiveCode.name),
+        code: window.__ideActiveCode.content,
+      }
+    }
+
     const tab = activeEditorTab
     if (!tab || tab === 'welcome' || tab === 'compiler') {
-      const defaultFile = fileCache['AppService.java'] || fileCache['Main.js'] || Object.values(fileCache)[0]
+      const defaultFile = fileCache['Main.java'] || fileCache['AppService.java'] || fileCache['Main.js'] || Object.values(fileCache)[0]
       if (defaultFile) {
         return { name: defaultFile.name, lang: defaultFile.lang || detectLanguage(defaultFile.name), code: defaultFile.content || '' }
       }
-      return { name: 'AppService.java', lang: 'java', code: '' }
+      return { name: 'Main.java', lang: 'java', code: '' }
     }
     const file = fileCache[tab]
     if (file) return { name: file.name, lang: file.lang || detectLanguage(file.name), code: file.content || '' }
-    const key = Object.keys(fileCache).find((k) => k.toLowerCase() === tab.toLowerCase())
+    const key = Object.keys(fileCache).find((k) => k.toLowerCase() === tab.toLowerCase() || k.toLowerCase().startsWith(tab.toLowerCase()))
     if (key && fileCache[key]) return { name: fileCache[key].name, lang: fileCache[key].lang || detectLanguage(key), code: fileCache[key].content || '' }
     return { name: tab, lang: detectLanguage(tab), code: '' }
   }
@@ -608,7 +617,11 @@ export default function AIAssistant() {
     const activeFile = getActiveFileInfo()
 
     try {
-      const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature)
+      const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature, {
+        activeCode: activeFile.code,
+        activeFile: activeFile.name,
+        activeLang: activeFile.lang,
+      })
       const data = res.data || {}
       const responseContent = data.content || data.message || 'I have analyzed your request and updated the workspace.'
       const responseCode = data.code || null

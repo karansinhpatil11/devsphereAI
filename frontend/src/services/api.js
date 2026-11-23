@@ -61,7 +61,8 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
 }
 
-export const sendChatMessage = (message, history, model, temperature) => api.post('/ai/chat', { message, history, model, temperature })
+export const sendChatMessage = (message, history, model, temperature, activeFileContext = {}) =>
+  api.post('/ai/chat', { message, history, model, temperature, ...activeFileContext })
 export const analyzeDiff = (diff, model) => api.post('/ai/analyze-diff', { diff, model })
 export const generatePRDescription = (changes, model) => api.post('/ai/generate-pr-description', { changes, model })
 

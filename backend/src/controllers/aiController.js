@@ -8,14 +8,14 @@ import { isDBConnected } from '../config/db.js'
  */
 export async function chat(req, res) {
   try {
-    const { message, history = [], model, temperature } = req.body
+    const { message, history = [], model, temperature, activeCode, activeFile, activeLang } = req.body
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'message is required' })
     }
 
     const userId = req.user?.id || req.user?.email || 'DevUser'
-    const result = await chatWithAI(message, history, model, userId, temperature)
+    const result = await chatWithAI(message, history, model, userId, temperature, { activeCode, activeFile, activeLang })
 
     // Persist chat session to MongoDB
     if (isDBConnected()) {
