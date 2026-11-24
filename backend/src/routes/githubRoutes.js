@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import {
+  getUser,
+  commitChanges,
   listRepositories,
   listPullRequests,
   getPRDiff,
@@ -17,6 +19,8 @@ import { optionalAuth } from '../middleware/auth.js'
 
 const router = Router()
 
+router.get('/user', optionalAuth, getUser)
+router.post('/commit', optionalAuth, commitChanges)
 router.get('/repositories', optionalAuth, listRepositories)
 router.get('/repository/:repo', optionalAuth, getRepoDetails)
 router.get('/prs/:repo', optionalAuth, listPullRequests)

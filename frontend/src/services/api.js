@@ -79,6 +79,8 @@ export const generateDocs = (data) => api.post('/ai/generate-docs', data)
 export const reviewCodePR = (data) => api.post('/ai/code-review', data)
 
 export const githubAPI = {
+  getUserProfile: () => api.get('/github/user'),
+  commitAndPush: (data) => api.post('/github/commit', data || {}),
   getRepositories: () => api.get('/github/repositories'),
   getRepository: (repo) => api.get(`/github/repository/${repo}`),
   getPullRequests: (repo) => api.get(`/github/prs/${repo}`),

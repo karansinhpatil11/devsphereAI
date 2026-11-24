@@ -6,6 +6,34 @@ dotenv.config()
 const OWNER = process.env.GITHUB_OWNER
 
 /**
+ * GET /api/github/user
+ */
+export async function getUser(req, res) {
+  try {
+    const user = await githubService.getUserProfile()
+    return res.json(user)
+  } catch (err) {
+    console.error('[GitHub User Error]', err.message)
+    return res.status(500).json({ error: 'Failed to fetch user profile', details: err.message })
+  }
+}
+
+/**
+ * POST /api/github/commit
+ * Body: { message, repo }
+ */
+export async function commitChanges(req, res) {
+  try {
+    const { message, repo } = req.body
+    const result = await githubService.commitAndPush({ message, repo })
+    return res.json(result)
+  } catch (err) {
+    console.error('[GitHub Commit Error]', err.message)
+    return res.status(500).json({ error: 'Failed to commit changes', details: err.message })
+  }
+}
+
+/**
  * GET /api/github/repositories
  */
 export async function listRepositories(req, res) {

@@ -210,25 +210,16 @@ function detectTaskIntent(prompt, activeFile = null) {
     return { type: 'run' }
   }
 
-  // 2. Task Tracker: Create / Complete / Delete Task
-  if (/\b(?:create|add|new)\s+(?:a\s+)?(?:task|todo)\b/i.test(lower) || /^todo:\s*/i.test(lower)) {
-    let title = p.replace(/^(?:please\s+)?(?:create|add|new)\s+(?:a\s+)?(?:task|todo)\s*(?::|-)?\s*/i, '').trim()
-    title = title.replace(/^todo:\s*/i, '').trim()
-    const priorityMatch = p.match(/\b(high|medium|low)\s+priority\b/i) || p.match(/\bpriority\s+(high|medium|low)\b/i)
-    const priority = priorityMatch ? (priorityMatch[1] || priorityMatch[2]).toLowerCase() : 'medium'
-    return { type: 'task_create', title: title || 'New Development Task', priority }
-  }
-
-  if (/\b(?:complete|finish|done|close|mark)\s+(?:task|todo)\b/i.test(lower) || /\bmark\s+(?:task\s+)?[\w-]+\s+(?:as\s+)?done\b/i.test(lower)) {
-    const idMatch = p.match(/task-[\w-]+/i) || p.match(/task\s+(\d+)/i) || p.match(/\b(\d+)\b/)
-    const taskId = idMatch ? (idMatch[0].startsWith('task-') ? idMatch[0] : `task-${idMatch[1] || idMatch[0]}`) : 'task-1'
-    return { type: 'task_complete', taskId }
-  }
-
-  if (/\b(?:delete|remove)\s+(?:task|todo)\b/i.test(lower)) {
-    const idMatch = p.match(/task-[\w-]+/i) || p.match(/task\s+(\d+)/i) || p.match(/\b(\d+)\b/)
-    const taskId = idMatch ? (idMatch[0].startsWith('task-') ? idMatch[0] : `task-${idMatch[1] || idMatch[0]}`) : 'task-1'
-    return { type: 'task_delete', taskId }
+  // 2. Real Git Commit & Push Intent
+  if (
+    /\b(?:commit|push)\s+(?:the\s+)?(?:changes|code|files|workspace|repo)?\b/i.test(lower) ||
+    /^(?:git\s+commit|git\s+push|commit|push)$/i.test(lower) ||
+    /\bcommit\s+and\s+push\b/i.test(lower) ||
+    /\bpush\s+to\s+github\b/i.test(lower)
+  ) {
+    let msgMatch = p.match(/(?:message|msg|m)\s+[:"']?([^"'\n]+)/i) || p.match(/["']([^"']+)["']/)
+    const commitMsg = msgMatch ? msgMatch[1].trim() : `Update codebase via DevSphere AI Assistant`
+    return { type: 'git_commit', message: commitMsg }
   }
 
   // 3. Documentation generation
@@ -255,16 +246,22 @@ function detectTaskIntent(prompt, activeFile = null) {
   }
 
   // 6. Code Modification / Fixing (Active File)
-  const isModifyPrompt = /\b(?:modify|update|edit|change|fix|repair|heal|refactor|clean|optimize|improve|rewrite|add\s+(?:a\s+)?(?:function|method|logging|error\s+handling|null\s+checks?))\b/i.test(lower)
+  const isModifyPrompt = /\b(?:modify|update|edit|change|fix|repair|heal|clean|optimize|improve|rewrite|add\s+(?:a\s+)?(?:function|method|logging|error\s+handling|null\s+checks?))\b/i.test(lower)
   
   // Check if specific file is named
-  const explicitFileMatch = p.match(/[`"']?(\w+\.(?:java|py|js|cpp|c))[`"']?/i)
-  if (explicitFileMatch) {
+  const explicitFileMatch = p.match(/(?:create|make|write|generate|new|build)?\s*(?:a\s+)?(?:simple\s+)?(?:new\s+)?(?:file\s+)?([a-zA-Z0-9_\-\.]+\.(?:java|py|js|cpp|c))\b/i)
+  if (explicitFileMatch && explicitFileMatch[1]) {
     const filename = explicitFileMatch[1]
     if (isModifyPrompt) {
       return { type: 'file_modify', filename }
-    } else if (/\b(?:create|new|make|write|generate|build)\b/i.test(lower)) {
-      return { type: 'file_create', filename }
+    } else {
+      let lang = 'javascript'
+      if (filename.endsWith('.js')) lang = 'javascript'
+      else if (filename.endsWith('.py')) lang = 'python'
+      else if (filename.endsWith('.java')) lang = 'java'
+      else if (filename.endsWith('.cpp') || filename.endsWith('.cc')) lang = 'cpp'
+      else if (filename.endsWith('.c')) lang = 'c'
+      return { type: 'file_create', filename, lang }
     }
   }
 
@@ -277,21 +274,26 @@ function detectTaskIntent(prompt, activeFile = null) {
     }
   }
 
-  // 6. Code / File Creation without explicit extension
+  // 7. Code / File Creation without explicit extension
   if (
-    /\b(?:create|write|make|generate|build|code)\s+(?:a\s+)?(?:new\s+)?(?:file|program|script|class|algorithm|solution|code|function|app)\b/i.test(lower) ||
+    /\b(?:create|write|make|generate|build|code)\s+(?:a\s+)?(?:simple\s+)?(?:new\s+)?(?:file|program|script|class|algorithm|solution|code|function|app)\b/i.test(lower) ||
+    /\b(?:create|write|make)\s+(?:a\s+)?(?:simple\s+)?file\b/i.test(lower) ||
     /\b(?:write|code|create)\s+(?:a\s+)?(?:python|java|c\+\+|cpp|c|javascript)\s+(?:program|script|function|code|algorithm)?\b/i.test(lower) ||
     /\b(?:in\s+(?:python|java|c\+\+|cpp|c|javascript|js|py))\b/i.test(lower)
   ) {
-    let lang = 'python'
-    let ext = 'py'
-    if (/\b(?:java)\b/i.test(lower)) { lang = 'java'; ext = 'java' }
+    let lang = 'javascript'
+    let ext = 'js'
+    if (/\b(?:python|py)\b/i.test(lower)) { lang = 'python'; ext = 'py' }
+    else if (/\b(?:java)\b/i.test(lower)) { lang = 'java'; ext = 'java' }
     else if (/\b(?:c\+\+|cpp)\b/i.test(lower)) { lang = 'cpp'; ext = 'cpp' }
     else if (/\b(?:c)\b/i.test(lower) && !/\b(?:c\+\+|cpp)\b/i.test(lower)) { lang = 'c'; ext = 'c' }
     else if (/\b(?:javascript|js|node)\b/i.test(lower)) { lang = 'javascript'; ext = 'js' }
-    else if (activeFile?.lang) { lang = activeFile.lang; ext = activeFile.lang === 'python' ? 'py' : activeFile.lang === 'javascript' ? 'js' : activeFile.lang }
+    else if (activeFile?.lang) {
+      lang = activeFile.lang
+      ext = activeFile.lang === 'python' ? 'py' : activeFile.lang === 'javascript' ? 'js' : activeFile.lang
+    }
 
-    let baseName = 'solution'
+    let baseName = 'app'
     if (lower.includes('binary search') || lower.includes('binarysearch')) baseName = 'binary_search'
     else if (lower.includes('calculator')) baseName = 'calculator'
     else if (lower.includes('fibonacci')) baseName = 'fibonacci'
@@ -300,7 +302,6 @@ function detectTaskIntent(prompt, activeFile = null) {
     else if (lower.includes('matrix')) baseName = 'matrix'
     else if (lower.includes('factorial')) baseName = 'factorial'
     else if (lower.includes('server') || lower.includes('api')) baseName = 'server'
-    else baseName = 'main'
 
     if (lang === 'java') {
       baseName = baseName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')
@@ -323,6 +324,68 @@ function guessFilenameFromCode(code, language) {
   if (language === 'python' || language === 'py') return 'main.py'
   if (language === 'javascript' || language === 'js') return 'index.js'
   return null
+}
+
+function getBoilerplate(filename, lang) {
+  const l = (lang || '').toLowerCase()
+  if (l === 'javascript' || l === 'js' || filename?.endsWith('.js')) {
+    return `// ${filename || 'app.js'} - DevSphere AI JavaScript Studio
+console.log("🚀 Running ${filename || 'app.js'} in DevSphere AI JavaScript Studio!");
+
+function greet(name = "Developer") {
+  return \`Welcome to DevSphere AI Studio, \${name}!\`;
+}
+
+console.log(greet("Karan"));
+console.log("Session started:", new Date().toLocaleTimeString());`
+  }
+  if (l === 'python' || l === 'py' || filename?.endsWith('.py')) {
+    return `# ${filename || 'app.py'} - DevSphere AI Python Studio
+def main():
+    print("🚀 Running ${filename || 'app.py'} in DevSphere AI Python Studio!")
+    languages = ["Python", "JavaScript", "Java", "C++", "C"]
+    print("DevSphere Active Environments:")
+    for idx, name in enumerate(languages, 1):
+        print(f"  {idx}. {name} - Ready")
+
+if __name__ == "__main__":
+    main()`
+  }
+  if (l === 'java' || filename?.endsWith('.java')) {
+    const className = filename ? filename.replace(/\.java$/, '') : 'Main'
+    return `// ${className}.java - DevSphere AI Java Studio
+import java.util.*;
+
+public class ${className} {
+    public static void main(String[] args) {
+        System.out.println("🚀 Running ${className}.java in DevSphere AI Java Studio!");
+        List<String> tools = Arrays.asList("Smart Compiler", "Bug Detector", "GitHub Actions", "AI Chat");
+        System.out.println("Active DevSphere Tools:");
+        tools.forEach(t -> System.out.println(" • " + t));
+    }
+}`
+  }
+  if (l === 'cpp' || l === 'c++' || filename?.endsWith('.cpp')) {
+    return `// ${filename || 'main.cpp'} - DevSphere AI C++ Studio
+#include <iostream>
+#include <vector>
+#include <string>
+
+int main() {
+    std::cout << "🚀 Running ${filename || 'main.cpp'} in DevSphere AI C++ Studio!" << std::endl;
+    return 0;
+}`
+  }
+  if (l === 'c' || filename?.endsWith('.c')) {
+    return `// ${filename || 'main.c'} - DevSphere AI C Studio
+#include <stdio.h>
+
+int main() {
+    printf("🚀 Running ${filename || 'main.c'} in DevSphere AI C Studio!\\n");
+    return 0;
+}`
+  }
+  return `console.log("DevSphere AI Workspace File");`
 }
 
 export default function AIAssistant() {
@@ -366,6 +429,8 @@ export default function AIAssistant() {
   const [loadingInsights, setLoadingInsights] = useState(false)
   const [githubActionLoading, setGithubActionLoading] = useState(false)
   const [githubActionResult, setGithubActionResult] = useState(null)
+  const [userProfile, setUserProfile] = useState(null)
+  const [commitMessageInput, setCommitMessageInput] = useState('')
 
   // GitHub PR creation modal/state
   const [showCreatePRModal, setShowCreatePRModal] = useState(false)
@@ -499,9 +564,9 @@ export default function AIAssistant() {
         docType,
         code: activeFile.code,
         projectInfo: {
-          name: 'core-service',
+          name: 'devsphereAI',
           framework: 'Multi-Language DevSphere AI Studio',
-          repository: 'karansinhpatil11/final-year-project',
+          repository: 'karansinhpatil11/devsphereAI',
         },
         saveToDocs: true,
         model: localModel,
@@ -517,15 +582,59 @@ export default function AIAssistant() {
   }
 
   // ── 4. GitHub Actions Managed by Gemini AI Agent ─────
+  useEffect(() => {
+    if (activeMode === 'github') {
+      fetchUserProfile()
+      fetchInsights()
+    }
+  }, [activeMode])
+
+  const fetchUserProfile = async () => {
+    try {
+      const res = await githubAPI.getUserProfile()
+      setUserProfile(res.data)
+    } catch (err) {
+      console.warn('Failed to fetch user profile:', err)
+    }
+  }
+
   const fetchInsights = async () => {
     setLoadingInsights(true)
     try {
-      const res = await githubAPI.getInsights('core-service')
+      const res = await githubAPI.getInsights('devsphereAI')
       setRepoInsights(res.data)
     } catch (err) {
       console.error(err)
     } finally {
       setLoadingInsights(false)
+    }
+  }
+
+  const handleCommitAndPushFromUI = async (customMsg = null) => {
+    const msg = (customMsg || commitMessageInput || 'Update codebase from DevSphere AI Assistant').trim()
+    setGithubActionLoading(true)
+    try {
+      const res = await githubAPI.commitAndPush({ message: msg, repo: 'devsphereAI' })
+      const data = res.data || {}
+      setGithubActionResult({
+        type: 'commit_pushed',
+        title: 'Changes Committed & Pushed to GitHub',
+        content: `✅ Successfully committed and pushed to origin/main!\n\n• **Repository**: karansinhpatil11/${data.repo || 'devsphereAI'}\n• **Commit**: \`${data.commitHash || 'HEAD'}\`\n• **Author**: @${data.author || 'karansinhpatil11'}\n• **Message**: "${msg}"\n• **Commit URL**: ${data.url || 'https://github.com/karansinhpatil11/devsphereAI'}\n\n${data.details || ''}`,
+      })
+      addChatMessage({
+        role: 'assistant',
+        thought: 'Executed git add, git commit, and git push origin main to linked GitHub repository karansinhpatil11/devsphereAI.',
+        content: `🚀 **Changes Committed & Pushed to GitHub!**\n\n• **Repository**: [karansinhpatil11/${data.repo || 'devsphereAI'}](${data.repoUrl || 'https://github.com/karansinhpatil11/devsphereAI'})\n• **Commit**: [\`${data.commitHash || 'HEAD'}\`](${data.url || '#'})\n• **Author**: **@${data.author || 'karansinhpatil11'}**\n• **Message**: "${msg}"`,
+      })
+      setCommitMessageInput('')
+    } catch (err) {
+      setGithubActionResult({
+        type: 'error',
+        title: 'Commit Error',
+        content: err.response?.data?.details || err.message,
+      })
+    } finally {
+      setGithubActionLoading(false)
     }
   }
 
@@ -598,7 +707,7 @@ export default function AIAssistant() {
     setGithubActionLoading(true)
     try {
       const res = await githubAPI.createPR({
-        repo: 'final-year-project',
+        repo: 'devsphereAI',
         title: prFormData.title,
         body: prFormData.body,
         head: prFormData.branch,
@@ -608,7 +717,7 @@ export default function AIAssistant() {
       setGithubActionResult({
         type: 'pr_created',
         title: 'Pull Request Created via Gemini Agent',
-        content: `✅ Pull Request #${res.data.number || '453'} created successfully!\n\n**Title**: ${res.data.title || prFormData.title}\n**Branch**: ${prFormData.branch} -> main\n**URL**: ${res.data.url || 'https://github.com/karansinhpatil11/final-year-project/pull/453'}`,
+        content: `✅ Pull Request #${res.data.number || '453'} created successfully!\n\n**Title**: ${res.data.title || prFormData.title}\n**Branch**: ${prFormData.branch} -> main\n**URL**: ${res.data.url || 'https://github.com/karansinhpatil11/devsphereAI/pull/453'}`,
       })
       addChatMessage({
         role: 'assistant',
@@ -647,7 +756,7 @@ export default function AIAssistant() {
     if (!issueFormData.title) return
     setGithubActionLoading(true)
     try {
-      const res = await githubAPI.createIssue('final-year-project', {
+      const res = await githubAPI.createIssue('devsphereAI', {
         title: issueFormData.title,
         body: issueFormData.body,
         labels: [issueFormData.label],
@@ -740,42 +849,17 @@ export default function AIAssistant() {
         return
       }
 
-      // 2. TASK TRACKER: CREATE TASK
-      if (taskIntent.type === 'task_create') {
-        const createRes = await taskAPI.createTask({
-          title: taskIntent.title,
-          status: 'todo',
-          priority: taskIntent.priority || 'medium',
+      // 2. REAL GIT COMMIT & PUSH TASK
+      if (taskIntent.type === 'git_commit') {
+        const commitRes = await githubAPI.commitAndPush({
+          message: taskIntent.message,
+          repo: 'devsphereAI',
         })
-        window.dispatchEvent(new CustomEvent('tasks-updated'))
+        const commitData = commitRes.data || {}
         addChatMessage({
           role: 'assistant',
-          thought: 'Created development task in project store.',
-          content: `✅ **Task Executed: Added Task to Tracker**\n\n• **Title**: "${taskIntent.title}"\n• **Status**: \`todo\`\n• **Priority**: \`${taskIntent.priority || 'medium'}\`\n\nThe Kanban board and project tracker have been updated.`,
-        })
-        return
-      }
-
-      // 3. TASK TRACKER: COMPLETE TASK
-      if (taskIntent.type === 'task_complete') {
-        await taskAPI.updateTask(taskIntent.taskId, { status: 'done' })
-        window.dispatchEvent(new CustomEvent('tasks-updated'))
-        addChatMessage({
-          role: 'assistant',
-          thought: `Marked ${taskIntent.taskId} as completed.`,
-          content: `✅ **Task Executed: Completed Task**\n\nMarked \`${taskIntent.taskId}\` as **Done** in the Project Task Tracker.`,
-        })
-        return
-      }
-
-      // 4. TASK TRACKER: DELETE TASK
-      if (taskIntent.type === 'task_delete') {
-        await taskAPI.deleteTask(taskIntent.taskId)
-        window.dispatchEvent(new CustomEvent('tasks-updated'))
-        addChatMessage({
-          role: 'assistant',
-          thought: `Deleted ${taskIntent.taskId} from task tracker.`,
-          content: `✅ **Task Executed: Deleted Task**\n\nRemoved \`${taskIntent.taskId}\` from the Project Task Tracker.`,
+          thought: `Committed workspace files and pushed origin/main to GitHub repository karansinhpatil11/devsphereAI.`,
+          content: `🚀 **Changes Committed & Pushed to GitHub!**\n\n• **Repository**: [karansinhpatil11/${commitData.repo || 'devsphereAI'}](${commitData.repoUrl || 'https://github.com/karansinhpatil11/devsphereAI'})\n• **Commit**: [\`${commitData.commitHash || 'HEAD'}\`](${commitData.url || '#'})\n• **Author**: **@${commitData.author || 'karansinhpatil11'}**\n• **Branch**: \`main\`\n• **Message**: "${taskIntent.message}"\n\n\`\`\`text\n${commitData.details || 'Pushed cleanly to origin/main'}\n\`\`\``,
         })
         return
       }
@@ -862,6 +946,51 @@ export default function AIAssistant() {
       }
 
       // 8. FILE CREATION OR MODIFICATION VIA CHAT
+      if (taskIntent.type === 'file_create') {
+        let targetFile = taskIntent.filename || 'app.js'
+        let responseLang = taskIntent.lang || (targetFile.endsWith('.py') ? 'python' : targetFile.endsWith('.java') ? 'java' : targetFile.endsWith('.cpp') ? 'cpp' : targetFile.endsWith('.c') ? 'c' : 'javascript')
+        let responseCode = null
+        let responseContent = ''
+        let thought = `Created ${targetFile} (${responseLang}) with clean working starter code.`
+
+        try {
+          const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature, {
+            activeCode: activeFile.code,
+            activeFile: activeFile.name,
+            activeLang: activeFile.lang,
+          })
+          const data = res.data || {}
+          responseContent = data.content || ''
+          thought = data.thought || thought
+          if (data.code) {
+            responseCode = data.code
+            if (data.codeLanguage) responseLang = data.codeLanguage
+            if (data.targetFile) targetFile = data.targetFile
+          }
+        } catch (e) {
+          console.warn('[AI File Gen Notice] Using local boilerplate generator:', e.message)
+        }
+
+        if (!responseCode) {
+          responseCode = getBoilerplate(targetFile, responseLang)
+        }
+
+        createFile(targetFile, responseCode, 'ai')
+        openFile(targetFile)
+
+        addChatMessage({
+          role: 'assistant',
+          content: (responseContent || `I've created \`${targetFile}\` for you with working ${responseLang.toUpperCase()} code.`) + `\n\n⚡ **Task Executed:** Created and opened \`${targetFile}\` in the code editor.`,
+          thought,
+          code: responseCode,
+          codeLanguage: responseLang,
+          fileAction: 'created',
+          targetFile,
+        })
+        return
+      }
+
+      // 9. GENERAL CHAT OR MODIFICATION
       const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature, {
         activeCode: activeFile.code,
         activeFile: activeFile.name,
@@ -877,12 +1006,7 @@ export default function AIAssistant() {
       let taskExecutedNote = ''
 
       if (responseCode) {
-        if (taskIntent.type === 'file_create') {
-          targetFile = taskIntent.filename || guessFilenameFromCode(responseCode, responseLang) || 'main.py'
-          createFile(targetFile, responseCode, 'ai')
-          fileAction = 'created'
-          taskExecutedNote = `\n\n⚡ **Task Executed:** Created and opened \`${targetFile}\` in the code editor.`
-        } else if (taskIntent.type === 'file_modify') {
+        if (taskIntent.type === 'file_modify') {
           targetFile = taskIntent.filename || activeFile.name
           if (window.__ideSetEditorCode) {
             window.__ideSetEditorCode(responseCode, targetFile)
@@ -1280,14 +1404,15 @@ export default function AIAssistant() {
                 <Bot size={24} className="text-ide-accent mx-auto" />
                 <h4 className="text-xs font-semibold text-ide-text-bright">Autonomous Gemini Assistant</h4>
                 <p className="text-[11px] text-ide-text/60 leading-relaxed">
-                  Ask me to refactor code, find bugs, manage GitHub PRs & issues, or write scripts.
+                  Ask me to create files in any language, commit & push to GitHub, find bugs, or explain code.
                 </p>
                 <div className="flex flex-col gap-1.5 pt-2 text-[10px]">
                   {[
-                    `Refactor ${activeFile.name} with clean architecture`,
+                    'Create a file app.js',
+                    'Commit workspace changes to GitHub',
                     `Find and fix bugs in ${activeFile.name}`,
+                    'Create a python script server.py',
                     'Review PR #452 and check diff',
-                    'Create a Python script app.py with a Flask server',
                   ].map((preset) => (
                     <button
                       key={preset}
@@ -1467,18 +1592,6 @@ export default function AIAssistant() {
                   </div>
                 </button>
 
-                <button
-                  onClick={() => handleCodingAction('refactor')}
-                  className="flex items-center gap-2 p-2.5 rounded-xl bg-ide-bg hover:bg-ide-purple/15 border border-ide-border hover:border-ide-purple/40 text-xs text-left transition-colors cursor-pointer"
-                >
-                  <div className="p-1.5 rounded-lg bg-ide-purple/20 text-ide-purple">
-                    <RefreshCw size={14} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-ide-text-bright">Refactor Code</div>
-                    <div className="text-[10px] text-ide-text/50">Clean code, SOLID & design patterns</div>
-                  </div>
-                </button>
 
                 <button
                   onClick={() => handleCodingAction('generate_tests')}
@@ -1742,13 +1855,84 @@ export default function AIAssistant() {
         {/* ── MODE 4: GITHUB ACTIONS MANAGED BY GEMINI AGENT ── */}
         {activeMode === 'github' && (
           <div className="space-y-3 slide-in text-xs">
+            {/* Linked Actual GitHub Profile Banner */}
+            <div className="p-3 bg-gradient-to-r from-emerald-950/40 via-ide-bg to-ide-panel rounded-xl border border-emerald-500/30 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img
+                  src={userProfile?.avatar_url || 'https://github.com/karansinhpatil11.png'}
+                  alt="GitHub Avatar"
+                  className="w-10 h-10 rounded-full border border-emerald-500/50 object-cover"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-ide-text-bright text-xs">
+                      {userProfile?.name || 'karansinh patil'}
+                    </span>
+                    <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 font-mono">
+                      <ShieldCheck size={9} /> Linked
+                    </span>
+                  </div>
+                  <a
+                    href={userProfile?.html_url || 'https://github.com/karansinhpatil11'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-mono"
+                  >
+                    @{userProfile?.login || 'karansinhpatil11'} <ExternalLink size={9} />
+                  </a>
+                  <div className="text-[10px] text-ide-text/60 mt-0.5">
+                    Active Repository:{' '}
+                    <a
+                      href="https://github.com/karansinhpatil11/devsphereAI"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-ide-accent hover:underline font-mono"
+                    >
+                      karansinhpatil11/devsphereAI
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Commit & Push Workspace to GitHub Form */}
+            <div className="p-3 bg-ide-bg rounded-xl border border-ide-border space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-xs text-ide-text-bright flex items-center gap-1.5">
+                  <GitCommit size={13} className="text-emerald-400" />
+                  <span>Commit & Push to GitHub</span>
+                </span>
+                <span className="text-[10px] text-ide-text/50 font-mono">origin/main</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commitMessageInput}
+                  onChange={(e) => setCommitMessageInput(e.target.value)}
+                  placeholder="Commit message (e.g. feat: add file app.js)"
+                  className="flex-1 bg-ide-panel border border-ide-border rounded-lg px-2.5 py-1.5 text-xs text-ide-text-bright placeholder:text-ide-text/40 focus:outline-none focus:border-emerald-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCommitAndPushFromUI()
+                  }}
+                />
+                <button
+                  onClick={() => handleCommitAndPushFromUI()}
+                  disabled={githubActionLoading}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <Zap size={12} />
+                  <span>Commit & Push</span>
+                </button>
+              </div>
+            </div>
+
             <div className="p-2.5 bg-ide-bg rounded-xl border border-ide-border space-y-1">
               <h3 className="text-xs font-semibold text-ide-text-bright flex items-center gap-1.5">
                 <GitPullRequest size={13} className="text-emerald-400" />
-                <span>GitHub AI Agent Manager</span>
+                <span>GitHub AI Agent Actions</span>
               </h3>
               <p className="text-[10px] text-ide-text/50">
-                All GitHub operations (PRs, Issues, Reviews, Commits) managed autonomously by Gemini.
+                All GitHub actions executed directly on your linked GitHub repository.
               </p>
             </div>
 
@@ -1895,7 +2079,7 @@ export default function AIAssistant() {
                     Open Active PR File
                   </button>
                   <a
-                    href="https://github.com/karansinhpatil11/final-year-project"
+                    href="https://github.com/karansinhpatil11/devsphereAI"
                     target="_blank"
                     rel="noreferrer"
                     className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold text-center transition-colors cursor-pointer flex items-center justify-center gap-1"
