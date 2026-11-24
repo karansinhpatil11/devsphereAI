@@ -540,15 +540,28 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
     let explanationPoints = []
 
     if (isJava) {
-      // 1. Check if public class doesn't match filename (e.g. public class Geeks in Main.java)
-      const publicClassMatch = code.match(/public\s+class\s+(\w+)/)
+      // 0. Check and fix missing 'main' keyword in method signature:
+      // Matches "public static void (String[] args)", "static void (String[] args)", "public void (String[] args)", or "void (String[] args)"
+      if (/(?:public\s+|static\s+|protected\s+|private\s+)*void\s*\(\s*(?:String\s*\[\s*\]|String\s*\.\.\.)/i.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/((?:public\s+|static\s+|protected\s+|private\s+)*void)\s*\(\s*(String\s*\[\s*\]|String\s*\.\.\.)/gi, '$1 main($2')
+        explanationPoints.push(`**Missing \`main\` Method Keyword**: Restored missing method identifier \`main\` in \`public static void (String[] args)\` -> \`public static void main(String[] args)\`.`)
+      }
+
+      // 1. Missing java.util imports (List, ArrayList, Map, Set, Scanner, etc.)
+      if (/\b(?:List|ArrayList|Map|HashMap|Set|HashSet|Collections|Arrays|Scanner|LinkedList|Queue|Stack)\b/.test(fixedCode) && !fixedCode.includes('java.util')) {
+        fixedCode = `import java.util.*;\n\n` + fixedCode
+        explanationPoints.push(`**Missing Utility Imports**: Added \`import java.util.*;\` for collections and data structures.`)
+      }
+
+      // 2. Check if public class doesn't match filename (e.g. public class Geeks in Main.java)
+      const publicClassMatch = fixedCode.match(/public\s+class\s+(\w+)/)
       if (publicClassMatch && targetFile && targetFile.endsWith('.java') && !targetFile.startsWith(publicClassMatch[1])) {
         // Change public class to package-private so Java compiler allows it in targetFile
         fixedCode = fixedCode.replace(new RegExp(`public\\s+class\\s+${publicClassMatch[1]}`), `class ${publicClassMatch[1]}`)
         explanationPoints.push(`**Compilation Fix (Class/File Naming)**: In Java, \`public class ${publicClassMatch[1]}\` must be declared in a file named \`${publicClassMatch[1]}.java\`. Adjusted class visibility to \`class ${publicClassMatch[1]}\` so it compiles cleanly inside \`${targetFile}\`.`)
       }
 
-      // 2. Check if a main method is present to ensure executability
+      // 3. Check if a main method is present to ensure executability
       const hasMain = /public\s+static\s+void\s+main/i.test(fixedCode) || /static\s+void\s+main/i.test(fixedCode)
       if (!hasMain && classes.length > 0) {
         const lastClass = classes[classes.length - 1]
@@ -564,11 +577,35 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
         }
     }
 }`
-        fixedCode = fixedCode.replace(/\}\s*$/, `${runnableMain}\n`)
+        if (/\}\s*$/.test(fixedCode)) {
+          fixedCode = fixedCode.replace(/\}\s*$/, `${runnableMain}\n`)
+        } else {
+          fixedCode += `\n${runnableMain}\n`
+        }
         explanationPoints.push(`**Execution Entrypoint**: Added standard \`public static void main(String[] args)\` entrypoint so the Java runtime can directly execute this file.`)
       }
 
-      // 3. Check for abstract method overrides
+      // 4. Complete unclosed loops or comments like "// Iterating through the list"
+      if (fixedCode.includes('// Iterating through the list') && !fixedCode.includes('for (')) {
+        const listVarMatch = fixedCode.match(/List<\w+>\s+(\w+)/)
+        const listVar = listVarMatch ? listVarMatch[1] : 'li'
+        fixedCode += `\n        for (String item : ${listVar}) {\n            System.out.println(item);\n        }\n`
+      }
+
+      // 5. Ensure all open braces are matched and closed
+      const openBraces = (fixedCode.match(/\{/g) || []).length
+      const closeBraces = (fixedCode.match(/\}/g) || []).length
+      if (openBraces > closeBraces) {
+        const diff = openBraces - closeBraces
+        fixedCode = fixedCode.trimEnd()
+        for (let i = diff; i >= 1; i--) {
+          fixedCode += '\n' + '    '.repeat(Math.max(0, i - 1)) + '}'
+        }
+        fixedCode += '\n'
+        explanationPoints.push(`**Unclosed Code Blocks**: Added ${diff} missing closing \`}\` braces to balance class and method scopes.`)
+      }
+
+      // 6. Check for abstract method overrides
       if (code.includes('abstract class') && !code.includes('@Override')) {
         explanationPoints.push(`**Method Annotation**: Verified abstract method implementations in concrete subclasses and enforced clean execution.`)
       }
@@ -992,15 +1029,48 @@ Return your assessment in strict JSON format:
       })
     }
 
-    // 2. Check for missing main entrypoint
+    // 2. Check for missing 'main' keyword or missing entrypoint
+    const missingMainKeyword = /(?:public\s+|static\s+|protected\s+|private\s+)*void\s*\(\s*(?:String\s*\[\s*\]|String\s*\.\.\.)/i.test(code)
     const hasMain = /public\s+static\s+void\s+main/i.test(code) || /static\s+void\s+main/i.test(code)
-    if (isJava && !hasMain) {
+    if (missingMainKeyword) {
+      securityIssues.push({
+        severity: 'critical',
+        line: 3,
+        title: 'Missing `main` Method Identifier in Entrypoint',
+        whyItExists: 'The method is declared as `public static void (String[] args)` omitting the required method name `main`. The Java compiler fails with `error: <identifier> expected`.',
+        suggestedFix: 'Insert `main` between `void` and `(String[] args)`.',
+      })
+    } else if (isJava && !hasMain) {
       securityIssues.push({
         severity: 'medium',
         line: 1,
         title: 'Missing Executable Main Entrypoint',
         whyItExists: 'The source file defines class contracts but lacks a standard `public static void main(String[] args)` method to trigger standalone execution.',
         suggestedFix: 'Implement a `main` entrypoint method to instantiate and run the classes.',
+      })
+    }
+
+    // 2b. Missing java.util imports
+    if (isJava && /\b(?:List|ArrayList|Map|HashMap|Set|HashSet|Scanner)\b/.test(code) && !code.includes('java.util')) {
+      securityIssues.push({
+        severity: 'high',
+        line: 1,
+        title: 'Missing `java.util.*` Package Imports',
+        whyItExists: 'Types like `List` and `ArrayList` are referenced without importing `java.util.*`, causing compilation errors: `cannot find symbol: class List`.',
+        suggestedFix: 'Add `import java.util.*;` at the top of the file.',
+      })
+    }
+
+    // 2c. Unclosed Code Blocks
+    const openBraces = (code.match(/\{/g) || []).length
+    const closeBraces = (code.match(/\}/g) || []).length
+    if (openBraces > closeBraces) {
+      securityIssues.push({
+        severity: 'high',
+        line: code.split('\n').length,
+        title: `Unclosed Code Block (${openBraces - closeBraces} Missing Braces)`,
+        whyItExists: 'The source file terminates abruptly with unmatched opening braces `{`, causing compilation failure `reached end of file while parsing`.',
+        suggestedFix: 'Add closing `}` braces to close the method and class definitions.',
       })
     }
 

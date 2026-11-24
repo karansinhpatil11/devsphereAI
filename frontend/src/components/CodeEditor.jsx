@@ -98,7 +98,7 @@ export default function CodeEditor({ tabId }) {
       window.__ideActiveCode = {
         name: currentFile?.name || targetFilename || 'Main.java',
         fileKey,
-        lang: currentFile?.lang || detectLanguage(targetFilename || 'Main.java'),
+        lang: currentFile?.lang || detectLanguage(targetFilename || currentFile?.name || 'Main.java'),
         content: newContent,
       }
       setSaved(true)
@@ -108,33 +108,22 @@ export default function CodeEditor({ tabId }) {
     const handleCustomUpdate = (e) => {
       if (!e.detail || typeof e.detail.code !== 'string') return
       const target = e.detail.filename || ''
-      const matches =
-        !target ||
-        target === currentFile.name ||
-        target === fileKey ||
-        resolveFileKey(target) === fileKey ||
-        target.endsWith(`/${currentFile.name}`) ||
-        currentFile.name.endsWith(`/${target}`) ||
-        target.replace(/\.[^.]+$/, '') === currentFile.name.replace(/\.[^.]+$/, '')
-
-      if (matches) {
-        setCode(e.detail.code)
-        if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = e.detail.code
-        if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = e.detail.code
-        window.__ideActiveCode = {
-          name: currentFile.name,
-          fileKey,
-          lang: currentFile.lang || detectLanguage(currentFile.name),
-          content: e.detail.code,
-        }
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
+      setCode(e.detail.code)
+      if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = e.detail.code
+      if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = e.detail.code
+      if (target && fileCache[target]) fileCache[target].content = e.detail.code
+      window.__ideActiveCode = {
+        name: currentFile?.name || target || 'Main.java',
+        fileKey,
+        lang: currentFile?.lang || detectLanguage(currentFile?.name || target || 'Main.java'),
+        content: e.detail.code,
       }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
     }
 
     window.addEventListener('ide-code-updated', handleCustomUpdate)
     return () => {
-      delete window.__ideSetEditorCode
       window.removeEventListener('ide-code-updated', handleCustomUpdate)
     }
   }, [fileKey, currentFile])
