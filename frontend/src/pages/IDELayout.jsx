@@ -18,7 +18,7 @@ function EditorArea() {
   }
 
   // Render file editor for selected file tabs
-  return <CodeEditor tabId={activeEditorTab} />
+  return <CodeEditor key={activeEditorTab} tabId={activeEditorTab} />
 }
 
 // VS Code-style bottom panel: Terminal, Output, Problems, Debug Console

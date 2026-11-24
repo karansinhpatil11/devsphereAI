@@ -964,6 +964,13 @@ Return your assessment in strict JSON format:
     } catch {}
 
     if (auditData && auditData.securityIssues) {
+      if (!auditData.fixedCode) {
+        const fixed = generateLocalCodingResult('fix_bugs', code, language, filename, 'Bug Fixes')
+        auditData.fixedCode = fixed.code
+      }
+      if (!auditData.fixedLanguage) {
+        auditData.fixedLanguage = language
+      }
       return auditData
     }
 

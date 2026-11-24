@@ -61,14 +61,24 @@ export default function CodeEditor({ tabId }) {
 
   // Sync editor content on AI or external file update
   useEffect(() => {
-    if (lastFileAction && (lastFileAction.filename === currentFile.name || lastFileAction.filename === fileKey)) {
-      const file = fileCache[currentFile.name] || fileCache[fileKey]
-      if (file) {
+    if (!lastFileAction) return
+    const target = lastFileAction.filename || ''
+    const matches =
+      target === currentFile.name ||
+      target === fileKey ||
+      resolveFileKey(target) === fileKey ||
+      target.endsWith(`/${currentFile.name}`) ||
+      currentFile.name.endsWith(`/${target}`) ||
+      target.replace(/\.[^.]+$/, '') === currentFile.name.replace(/\.[^.]+$/, '')
+
+    if (matches) {
+      const file = fileCache[target] || fileCache[currentFile.name] || fileCache[fileKey]
+      if (file && file.content !== undefined) {
         setCode(file.content)
         window.__ideActiveCode = {
-          name: file.name,
+          name: currentFile.name,
           fileKey,
-          lang: file.lang || detectLanguage(file.name),
+          lang: file.lang || detectLanguage(currentFile.name),
           content: file.content,
         }
         setSaved(true)
@@ -76,6 +86,58 @@ export default function CodeEditor({ tabId }) {
       }
     }
   }, [lastFileAction, currentFile.name, fileKey])
+
+  // Direct editor update hook and custom event listener
+  useEffect(() => {
+    window.__ideSetEditorCode = (newContent, targetFilename) => {
+      if (typeof newContent !== 'string') return
+      setCode(newContent)
+      if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = newContent
+      if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = newContent
+      if (targetFilename && fileCache[targetFilename]) fileCache[targetFilename].content = newContent
+      window.__ideActiveCode = {
+        name: currentFile?.name || targetFilename || 'Main.java',
+        fileKey,
+        lang: currentFile?.lang || detectLanguage(targetFilename || 'Main.java'),
+        content: newContent,
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    }
+
+    const handleCustomUpdate = (e) => {
+      if (!e.detail || typeof e.detail.code !== 'string') return
+      const target = e.detail.filename || ''
+      const matches =
+        !target ||
+        target === currentFile.name ||
+        target === fileKey ||
+        resolveFileKey(target) === fileKey ||
+        target.endsWith(`/${currentFile.name}`) ||
+        currentFile.name.endsWith(`/${target}`) ||
+        target.replace(/\.[^.]+$/, '') === currentFile.name.replace(/\.[^.]+$/, '')
+
+      if (matches) {
+        setCode(e.detail.code)
+        if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = e.detail.code
+        if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = e.detail.code
+        window.__ideActiveCode = {
+          name: currentFile.name,
+          fileKey,
+          lang: currentFile.lang || detectLanguage(currentFile.name),
+          content: e.detail.code,
+        }
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      }
+    }
+
+    window.addEventListener('ide-code-updated', handleCustomUpdate)
+    return () => {
+      delete window.__ideSetEditorCode
+      window.removeEventListener('ide-code-updated', handleCustomUpdate)
+    }
+  }, [fileKey, currentFile])
 
   const handleCodeChange = (e) => {
     const val = e.target.value

@@ -129,7 +129,7 @@ function ChatMessage({ message, onApplyCode }) {
               onClick={() => onApplyCode?.('apply', message)}
               className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-ide-accent/20 border border-ide-accent/40 text-ide-accent hover:bg-ide-accent/30 transition-colors cursor-pointer font-semibold"
             >
-              <Pencil size={10} /> ⚡ Apply to Editor
+              <Pencil size={10} /> ⚡ Apply Fix to Editor
             </button>
             <button
               onClick={() => onApplyCode?.('save_new', message)}
@@ -245,7 +245,16 @@ function detectTaskIntent(prompt, activeFile = null) {
     return { type: 'test_generate' }
   }
 
-  // 5. Code Modification / Fixing (Active File)
+  // 5. Bug Catching / Scanning Intent
+  if (
+    /\b(?:catch|find|detect|scan|check|spot)\s+(?:for\s+)?(?:all\s+)?(?:bugs?|errors?|flaws?|vulnerabilit(?:y|ies)|issues?)\b/i.test(lower) ||
+    /^(?:catch|scan|check|find)\s+bugs?$/i.test(lower) ||
+    /\bcatch\s+bug\b/i.test(lower)
+  ) {
+    return { type: 'bug_catch' }
+  }
+
+  // 6. Code Modification / Fixing (Active File)
   const isModifyPrompt = /\b(?:modify|update|edit|change|fix|repair|heal|refactor|clean|optimize|improve|rewrite|add\s+(?:a\s+)?(?:function|method|logging|error\s+handling|null\s+checks?))\b/i.test(lower)
   
   // Check if specific file is named
@@ -817,7 +826,42 @@ export default function AIAssistant() {
         return
       }
 
-      // 7. FILE CREATION OR MODIFICATION VIA CHAT
+      // 7. BUG CATCH & SCAN TASK VIA CHAT
+      if (taskIntent.type === 'bug_catch') {
+        const scanRes = await smartBugScan({
+          code: activeFile.code,
+          language: activeFile.lang,
+          filename: activeFile.name,
+          model: localModel,
+          temperature: aiTemperature,
+        })
+        const scanData = scanRes.data || {}
+        setBugScanResult(scanData)
+
+        const secIssues = scanData.securityIssues || []
+        const perfIssues = scanData.performanceIssues || []
+        const fixedCode = scanData.fixedCode || activeFile.code
+
+        let issueList = ''
+        if (secIssues.length > 0) {
+          issueList += `\n\n**🛡️ Caught Security & Logic Bugs:**\n` + secIssues.map(i => `• **Line ${i.line}** [${i.severity?.toUpperCase()}]: **${i.title}**\n  *Cause:* ${i.whyItExists}\n  *Recommended Fix:* \`${i.suggestedFix}\``).join('\n')
+        }
+        if (perfIssues.length > 0) {
+          issueList += `\n\n**⚡ Caught Performance Bottlenecks:**\n` + perfIssues.map(p => `• **Line ${p.line}** [${p.severity?.toUpperCase()}]: **${p.title}**\n  *Cause:* ${p.whyItExists}\n  *Optimization:* \`${p.suggestedFix}\``).join('\n')
+        }
+
+        addChatMessage({
+          role: 'assistant',
+          thought: `Audited ${activeFile.name} with Smart Bug Detector. Identified ${secIssues.length} security/logic issues and ${perfIssues.length} performance bottlenecks. Health score: ${scanData.healthScore}/100.`,
+          content: `🛡️ **Bugs Caught in \`${activeFile.name}\`** (Health Score: **${scanData.healthScore} / 100**)\n\n${scanData.summary || 'Code analysis complete.'}${issueList}\n\n👇 **Click '⚡ Apply Fix to Editor' below to write the bug-free code directly to your code editor:**`,
+          code: fixedCode,
+          codeLanguage: scanData.fixedLanguage || activeFile.lang,
+          targetFile: activeFile.name,
+        })
+        return
+      }
+
+      // 8. FILE CREATION OR MODIFICATION VIA CHAT
       const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature, {
         activeCode: activeFile.code,
         activeFile: activeFile.name,
@@ -840,6 +884,14 @@ export default function AIAssistant() {
           taskExecutedNote = `\n\n⚡ **Task Executed:** Created and opened \`${targetFile}\` in the code editor.`
         } else if (taskIntent.type === 'file_modify') {
           targetFile = taskIntent.filename || activeFile.name
+          if (window.__ideSetEditorCode) {
+            window.__ideSetEditorCode(responseCode, targetFile)
+          }
+          window.dispatchEvent(
+            new CustomEvent('ide-code-updated', {
+              detail: { code: responseCode, filename: targetFile },
+            })
+          )
           updateFile(targetFile, responseCode, 'ai')
           fileAction = 'modified'
           taskExecutedNote = `\n\n⚡ **Task Executed:** Automatically updated \`${targetFile}\` in the code editor.`
@@ -847,6 +899,14 @@ export default function AIAssistant() {
           // If code was generated and active file exists, automatically check if user intended code update
           if (/\b(?:fix|refactor|error|bug|clean|add|update)\b/i.test(message) && activeFile.name && activeFile.name !== 'welcome') {
             targetFile = activeFile.name
+            if (window.__ideSetEditorCode) {
+              window.__ideSetEditorCode(responseCode, targetFile)
+            }
+            window.dispatchEvent(
+              new CustomEvent('ide-code-updated', {
+                detail: { code: responseCode, filename: targetFile },
+              })
+            )
             updateFile(targetFile, responseCode, 'ai')
             fileAction = 'modified'
             taskExecutedNote = `\n\n⚡ **Task Executed:** Applied code changes directly to \`${targetFile}\`.`
@@ -881,12 +941,22 @@ export default function AIAssistant() {
   // ── Handle Action Buttons ───────────────────────────
   const handleApplyCode = (action, message) => {
     if (action === 'apply' && message.code) {
-      const targetFile = message.targetFile || activeEditorTab
+      const active = getActiveFileInfo()
+      const targetFile = message.targetFile || (activeEditorTab && activeEditorTab !== 'welcome' && activeEditorTab !== 'compiler' ? activeEditorTab : active.name) || 'Main.java'
       if (targetFile && targetFile !== 'welcome' && targetFile !== 'compiler') {
+        // Direct synchronous editor update
+        if (window.__ideSetEditorCode) {
+          window.__ideSetEditorCode(message.code, targetFile)
+        }
+        window.dispatchEvent(
+          new CustomEvent('ide-code-updated', {
+            detail: { code: message.code, filename: targetFile },
+          })
+        )
         updateFile(targetFile, message.code, 'ai')
         addChatMessage({
           role: 'assistant',
-          content: `✅ Successfully applied code to \`${targetFile}\`!`,
+          content: `⚡ **Bug Fix Applied to Editor!**\n\nSuccessfully wrote and updated the code in \`${targetFile}\`.`,
           fileAction: 'modified',
           targetFile,
         })
@@ -900,6 +970,33 @@ export default function AIAssistant() {
       setPendingSaveLang(message.codeLanguage || '')
       setShowSaveModal(true)
     }
+  }
+
+  // ── Apply Hardened Fix Directly to Active Editor ──
+  const handleApplyHardenedFix = (targetFilename = null) => {
+    if (!bugScanResult || !bugScanResult.fixedCode) return
+    const active = getActiveFileInfo()
+    const target = targetFilename || active.name || (activeEditorTab && activeEditorTab !== 'welcome' && activeEditorTab !== 'compiler' ? activeEditorTab : 'Main.java')
+
+    if (window.__ideSetEditorCode) {
+      window.__ideSetEditorCode(bugScanResult.fixedCode, target)
+    }
+    window.dispatchEvent(
+      new CustomEvent('ide-code-updated', {
+        detail: { code: bugScanResult.fixedCode, filename: target },
+      })
+    )
+    updateFile(target, bugScanResult.fixedCode, 'ai')
+
+    addChatMessage({
+      role: 'assistant',
+      thought: `Hardened bug fix applied to ${target}. Security vulnerabilities and performance bottlenecks resolved.`,
+      content: `⚡ **Bug Fix Applied to Code Editor!**\n\nSuccessfully wrote bug-free code into \`${target}\` in the editor (Health Score: **${bugScanResult.healthScore} / 100**).`,
+      code: bugScanResult.fixedCode,
+      codeLanguage: bugScanResult.fixedLanguage || active.lang,
+      fileAction: 'modified',
+      targetFile: target,
+    })
   }
 
   const handleSaveNewFile = (e) => {
@@ -1300,11 +1397,19 @@ export default function AIAssistant() {
                         ) : (
                           <button
                             onClick={() => {
-                              const target = codingResult.targetFile || activeEditorTab || 'AppService.java'
+                              const target = codingResult.targetFile || activeEditorTab || activeFile.name || 'Main.java'
+                              if (window.__ideSetEditorCode) {
+                                window.__ideSetEditorCode(codingResult.code, target)
+                              }
+                              window.dispatchEvent(
+                                new CustomEvent('ide-code-updated', {
+                                  detail: { code: codingResult.code, filename: target },
+                                })
+                              )
                               updateFile(target, codingResult.code, 'ai')
                               addChatMessage({
                                 role: 'assistant',
-                                content: `⚡ Applied ${codingResult.action === 'fix_bugs' ? 'bug fixes' : 'refactored code'} to \`${target}\`!`,
+                                content: `⚡ **Bug Fix Applied!** Applied ${codingResult.action === 'fix_bugs' ? 'bug fixes' : 'refactored code'} to \`${target}\` in the code editor.`,
                                 fileAction: 'modified',
                                 targetFile: target,
                               })
@@ -1465,6 +1570,13 @@ export default function AIAssistant() {
                         {issue.suggestedFix}
                       </p>
                     </div>
+                    <button
+                      onClick={() => handleApplyHardenedFix(activeFile.name)}
+                      className="w-full mt-1.5 py-1 px-2.5 bg-ide-red hover:bg-ide-red/80 text-white rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Pencil size={10} />
+                      <span>⚡ Apply Fix for Line {issue.line} to Editor</span>
+                    </button>
                   </div>
                 ))}
 
@@ -1490,18 +1602,23 @@ export default function AIAssistant() {
                         {perf.suggestedFix}
                       </p>
                     </div>
+                    <button
+                      onClick={() => handleApplyHardenedFix(activeFile.name)}
+                      className="w-full mt-1.5 py-1 px-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Zap size={10} />
+                      <span>⚡ Apply Optimization for Line {perf.line} to Editor</span>
+                    </button>
                   </div>
                 ))}
 
                 {bugScanResult.fixedCode && (
                   <button
-                    onClick={() => {
-                      updateFile(activeFile.name, bugScanResult.fixedCode, 'ai')
-                    }}
-                    className="w-full py-2 bg-ide-green hover:bg-ide-green/80 text-black font-semibold rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    onClick={() => handleApplyHardenedFix(activeFile.name)}
+                    className="w-full py-2.5 bg-ide-green hover:bg-ide-green/80 text-black font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-ide-green/20"
                   >
-                    <CheckCircle2 size={13} />
-                    <span>Apply Hardened Fix to {activeFile.name}</span>
+                    <CheckCircle2 size={14} />
+                    <span>⚡ Apply All Fixes to Code Editor ({activeFile.name})</span>
                   </button>
                 )}
               </div>
