@@ -431,6 +431,8 @@ export default function AIAssistant() {
   const [githubActionResult, setGithubActionResult] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [commitMessageInput, setCommitMessageInput] = useState('')
+  const [commitTargetRepo, setCommitTargetRepo] = useState('devsphereAI')
+  const [commitTargetScope, setCommitTargetScope] = useState('.')
 
   // GitHub PR creation modal/state
   const [showCreatePRModal, setShowCreatePRModal] = useState(false)
@@ -510,6 +512,19 @@ export default function AIAssistant() {
       const targetFile = res.data.targetFile || (action === 'generate_tests'
         ? `${activeFile.name.replace(/\.[^.]+$/, '')}${activeFile.lang === 'java' ? 'Test.java' : '.test.js'}`
         : activeFile.name)
+
+      if (action === 'generate_tests' && res.data.code) {
+        try {
+          await docAPI.createDoc({
+            title: `Unit Tests: ${activeFile.name}`,
+            category: 'Testing',
+            content: `# Automated Unit Test Specification\n\n**Source Target:** \`${activeFile.name}\` (${activeFile.lang})\n**Test File:** \`${targetFile}\`\n**Date:** ${new Date().toLocaleString()}\n\n## Test Overview\nThis unit test specification exercises core logic, edge cases, and error boundaries for the code in \`${activeFile.name}\`.\n\n## Generated Test Suite Code\n\`\`\`${activeFile.lang}\n${res.data.code}\n\`\`\`\n\n## Verification Strategy\n- C/C++: Built-in assertion runner\n- Java: JUnit 5 test fixtures\n- Python: unittest test cases\n- JavaScript: Vitest / Jest test runner`,
+          })
+          window.dispatchEvent(new CustomEvent('docs-updated'))
+        } catch (e) {
+          console.warn('Doc creation notice:', e)
+        }
+      }
 
       setCodingResult({
         action,
@@ -612,19 +627,21 @@ export default function AIAssistant() {
 
   const handleCommitAndPushFromUI = async (customMsg = null) => {
     const msg = (customMsg || commitMessageInput || 'Update codebase from DevSphere AI Assistant').trim()
+    const targetRepo = (commitTargetRepo || 'devsphereAI').trim()
+    const targetPath = (commitTargetScope || '.').trim()
     setGithubActionLoading(true)
     try {
-      const res = await githubAPI.commitAndPush({ message: msg, repo: 'devsphereAI' })
+      const res = await githubAPI.commitAndPush({ message: msg, repo: targetRepo, path: targetPath })
       const data = res.data || {}
       setGithubActionResult({
         type: 'commit_pushed',
         title: 'Changes Committed & Pushed to GitHub',
-        content: `✅ Successfully committed and pushed to origin/main!\n\n• **Repository**: karansinhpatil11/${data.repo || 'devsphereAI'}\n• **Commit**: \`${data.commitHash || 'HEAD'}\`\n• **Author**: @${data.author || 'karansinhpatil11'}\n• **Message**: "${msg}"\n• **Commit URL**: ${data.url || 'https://github.com/karansinhpatil11/devsphereAI'}\n\n${data.details || ''}`,
+        content: `✅ Successfully committed and pushed to origin/main!\n\n• **Repository**: karansinhpatil11/${data.repo || targetRepo}\n• **Scope/Path**: \`${data.path || targetPath}\`\n• **Commit**: \`${data.commitHash || 'HEAD'}\`\n• **Author**: @${data.author || 'karansinhpatil11'}\n• **Message**: "${msg}"\n• **Commit URL**: ${data.url || `https://github.com/karansinhpatil11/${data.repo || targetRepo}`}\n\n${data.details || ''}`,
       })
       addChatMessage({
         role: 'assistant',
-        thought: 'Executed git add, git commit, and git push origin main to linked GitHub repository karansinhpatil11/devsphereAI.',
-        content: `🚀 **Changes Committed & Pushed to GitHub!**\n\n• **Repository**: [karansinhpatil11/${data.repo || 'devsphereAI'}](${data.repoUrl || 'https://github.com/karansinhpatil11/devsphereAI'})\n• **Commit**: [\`${data.commitHash || 'HEAD'}\`](${data.url || '#'})\n• **Author**: **@${data.author || 'karansinhpatil11'}**\n• **Message**: "${msg}"`,
+        thought: `Executed git add ${targetPath}, git commit, and git push origin main to linked GitHub repository karansinhpatil11/${targetRepo}.`,
+        content: `🚀 **Changes Committed & Pushed to GitHub!**\n\n• **Repository**: [karansinhpatil11/${data.repo || targetRepo}](${data.repoUrl || `https://github.com/karansinhpatil11/${targetRepo}`})\n• **Scope / Path**: \`${data.path || targetPath}\`\n• **Commit**: [\`${data.commitHash || 'HEAD'}\`](${data.url || '#'})\n• **Author**: **@${data.author || 'karansinhpatil11'}**\n• **Message**: "${msg}"`,
       })
       setCommitMessageInput('')
     } catch (err) {
@@ -898,10 +915,23 @@ export default function AIAssistant() {
         const testFile = testData.targetFile || (activeFile.lang === 'java' ? 'MainTest.java' : `test_${activeFile.name}`)
 
         createFile(testFile, testCode, 'ai')
+
+        let docTitle = `Unit Tests: ${activeFile.name}`
+        try {
+          await docAPI.createDoc({
+            title: docTitle,
+            category: 'Testing',
+            content: `# Automated Unit Test Suite\n\n**Target Source:** \`${activeFile.name}\` (${activeFile.lang})\n**Test Runner File:** \`${testFile}\`\n**Date:** ${new Date().toLocaleString()}\n\n## Test Overview\nThis unit test specification exercises core logic, edge cases, and error boundaries for the code in \`${activeFile.name}\`.\n\n## Generated Test Suite Code\n\`\`\`${activeFile.lang}\n${testCode}\n\`\`\`\n\n## Execution Guide\n- **C / C++**: Compile test runner with \`gcc test_${activeFile.name} -o test_runner && ./test_runner\`\n- **Java**: Run with \`javac ${testFile} && java org.junit.platform.console.ConsoleLauncher\`\n- **Python**: Run with \`python -m unittest ${testFile}\`\n- **JavaScript**: Run with \`npx vitest run ${testFile}\``,
+          })
+          window.dispatchEvent(new CustomEvent('docs-updated'))
+        } catch (e) {
+          console.warn('Doc creation notice:', e)
+        }
+
         addChatMessage({
           role: 'assistant',
-          thought: `Synthesized unit test suite targeting classes and methods in ${activeFile.name}.`,
-          content: `✅ **Task Executed: Generated Unit Tests**\n\nCreated and opened \`${testFile}\` in the code editor with test coverage for \`${activeFile.name}\`.`,
+          thought: `Synthesized unit test suite targeting classes and methods in ${activeFile.name} and saved test documentation in Doc Hub under Testing.`,
+          content: `✅ **Task Executed: Generated Unit Tests**\n\n• **Test File**: Created and opened \`${testFile}\` in the code editor with test coverage for \`${activeFile.name}\`.\n• **Documentation**: Test document saved to **Docs section** under **Testing** (**${docTitle}**).`,
           code: testCode,
           codeLanguage: activeFile.lang,
           fileAction: 'created',
@@ -1069,6 +1099,9 @@ export default function AIAssistant() {
       const targetFile = message.targetFile || (activeEditorTab && activeEditorTab !== 'welcome' && activeEditorTab !== 'compiler' ? activeEditorTab : active.name) || 'Main.java'
       if (targetFile && targetFile !== 'welcome' && targetFile !== 'compiler') {
         // Direct synchronous editor update
+        if (fileCache[targetFile]) {
+          fileCache[targetFile].content = message.code
+        }
         if (window.__ideSetEditorCode) {
           window.__ideSetEditorCode(message.code, targetFile)
         }
@@ -1078,6 +1111,7 @@ export default function AIAssistant() {
           })
         )
         updateFile(targetFile, message.code, 'ai')
+        useStore.getState().setActiveEditorTab(targetFile)
         addChatMessage({
           role: 'assistant',
           content: `⚡ **Bug Fix Applied to Editor!**\n\nSuccessfully wrote and updated the code in \`${targetFile}\`.`,
@@ -1102,6 +1136,9 @@ export default function AIAssistant() {
     const active = getActiveFileInfo()
     const target = targetFilename || active.name || (activeEditorTab && activeEditorTab !== 'welcome' && activeEditorTab !== 'compiler' ? activeEditorTab : 'Main.java')
 
+    if (fileCache[target]) {
+      fileCache[target].content = bugScanResult.fixedCode
+    }
     if (window.__ideSetEditorCode) {
       window.__ideSetEditorCode(bugScanResult.fixedCode, target)
     }
@@ -1111,6 +1148,7 @@ export default function AIAssistant() {
       })
     )
     updateFile(target, bugScanResult.fixedCode, 'ai')
+    useStore.getState().setActiveEditorTab(target)
 
     addChatMessage({
       role: 'assistant',
@@ -1896,34 +1934,69 @@ export default function AIAssistant() {
             </div>
 
             {/* Commit & Push Workspace to GitHub Form */}
-            <div className="p-3 bg-ide-bg rounded-xl border border-ide-border space-y-2">
+            <div className="p-3 bg-ide-bg rounded-xl border border-ide-border space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-xs text-ide-text-bright flex items-center gap-1.5">
                   <GitCommit size={13} className="text-emerald-400" />
                   <span>Commit & Push to GitHub</span>
                 </span>
-                <span className="text-[10px] text-ide-text/50 font-mono">origin/main</span>
+                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">origin/main</span>
               </div>
-              <div className="flex gap-2">
+
+              {/* Target Repository and Path Configuration */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] uppercase tracking-wider text-ide-text/50 font-semibold block mb-0.5">
+                    Target Repository
+                  </label>
+                  <input
+                    type="text"
+                    value={commitTargetRepo}
+                    onChange={(e) => setCommitTargetRepo(e.target.value)}
+                    placeholder="e.g. devsphereAI"
+                    className="w-full bg-ide-panel border border-ide-border rounded-lg px-2 py-1 text-xs text-ide-text-bright font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase tracking-wider text-ide-text/50 font-semibold block mb-0.5">
+                    Commit Scope / Path
+                  </label>
+                  <input
+                    type="text"
+                    value={commitTargetScope}
+                    onChange={(e) => setCommitTargetScope(e.target.value)}
+                    placeholder="e.g. . or src/"
+                    className="w-full bg-ide-panel border border-ide-border rounded-lg px-2 py-1 text-xs text-ide-text-bright font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Commit Message Input */}
+              <div>
+                <label className="text-[9px] uppercase tracking-wider text-ide-text/50 font-semibold block mb-0.5">
+                  Commit Message
+                </label>
                 <input
                   type="text"
                   value={commitMessageInput}
                   onChange={(e) => setCommitMessageInput(e.target.value)}
                   placeholder="Commit message (e.g. feat: add file app.js)"
-                  className="flex-1 bg-ide-panel border border-ide-border rounded-lg px-2.5 py-1.5 text-xs text-ide-text-bright placeholder:text-ide-text/40 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-ide-panel border border-ide-border rounded-lg px-2.5 py-1.5 text-xs text-ide-text-bright placeholder:text-ide-text/40 focus:outline-none focus:border-emerald-500"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCommitAndPushFromUI()
                   }}
                 />
-                <button
-                  onClick={() => handleCommitAndPushFromUI()}
-                  disabled={githubActionLoading}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
-                >
-                  <Zap size={12} />
-                  <span>Commit & Push</span>
-                </button>
               </div>
+
+              {/* Full-width responsive button completely inside the card box */}
+              <button
+                onClick={() => handleCommitAndPushFromUI()}
+                disabled={githubActionLoading}
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Zap size={13} />
+                <span>Commit & Push Changes</span>
+              </button>
             </div>
 
             <div className="p-2.5 bg-ide-bg rounded-xl border border-ide-border space-y-1">

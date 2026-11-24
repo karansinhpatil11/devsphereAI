@@ -60,12 +60,13 @@ export async function getUserProfile() {
 /**
  * Execute real Git commit & push to GitHub repository
  */
-export async function commitAndPush({ message = 'Update codebase from DevSphere AI', repo = 'devsphereAI' }) {
+export async function commitAndPush({ message = 'Update codebase from DevSphere AI', repo = 'devsphereAI', path = '.' }) {
   const owner = process.env.GITHUB_OWNER || 'karansinhpatil11'
   const cleanMsg = (message || 'Update codebase from DevSphere AI').replace(/"/g, '\\"')
+  const stageTarget = (path && path.trim()) ? path.trim() : '.'
   
   try {
-    await execAsync('git add .')
+    await execAsync(`git add ${stageTarget}`)
     let commitOut = ''
     try {
       const res = await execAsync(`git commit -m "${cleanMsg}"`)
@@ -95,6 +96,7 @@ export async function commitAndPush({ message = 'Update codebase from DevSphere 
       message: cleanMsg,
       author: owner,
       repo: repo || 'devsphereAI',
+      path: stageTarget,
       url: `https://github.com/${owner}/${repo || 'devsphereAI'}/commit/${hash}`,
       repoUrl: `https://github.com/${owner}/${repo || 'devsphereAI'}`,
       details: `${commitOut}\n${pushOut}`.trim(),

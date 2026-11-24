@@ -10,9 +10,10 @@ import {
   Clock,
   Terminal as TerminalIcon,
   X,
+  ShieldAlert,
 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { githubAPI, compilerAPI } from '../services/api'
+import { githubAPI, compilerAPI, smartBugScan } from '../services/api'
 import { fileCache, getOrCreateFile, detectLanguage, INITIAL_FILES } from '../store/fileStorage'
 
 export const REPO_FILES = INITIAL_FILES
@@ -26,6 +27,8 @@ export default function CodeEditor({ tabId }) {
 
   // Compiler state for active editor
   const [isRunning, setIsRunning] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanResult, setScanResult] = useState(null)
   const textareaRef = useRef(null)
 
   // Resolve matching file key dynamically
@@ -198,6 +201,51 @@ export default function CodeEditor({ tabId }) {
     }
   }
 
+  // Smart Bug Scan & Healing
+  const handleScanCode = async () => {
+    setIsScanning(true)
+    try {
+      const res = await smartBugScan({
+        code,
+        language: currentFile.lang || detectLanguage(currentFile.name),
+        filename: currentFile.name,
+      })
+      const data = res.data || {}
+      setScanResult(data)
+      addChatMessage({
+        role: 'assistant',
+        thought: `Static analysis audit completed for ${currentFile.name}. Health score: ${data.healthScore}/100.`,
+        content: `🛡️ **Code Scan Completed for \`${currentFile.name}\`**\n\n• **Health Score**: **${data.healthScore} / 100**\n• **Summary**: ${data.summary || 'Code audit complete.'}\n• **Security / Logic Bugs**: ${data.securityIssues?.length || 0}\n• **Performance Bottlenecks**: ${data.performanceIssues?.length || 0}\n\n${data.fixedCode ? '👇 Click below to apply the AI-fixed code directly to the editor:' : ''}`,
+        code: data.fixedCode || null,
+        codeLanguage: data.fixedLanguage || currentFile.lang,
+        targetFile: currentFile.name,
+      })
+    } catch (err) {
+      console.error('Scan error:', err)
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleApplyScanFix = () => {
+    if (!scanResult || !scanResult.fixedCode) return
+    const fixed = scanResult.fixedCode
+    setCode(fixed)
+    if (textareaRef.current) textareaRef.current.value = fixed
+    if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = fixed
+    if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = fixed
+    window.__ideActiveCode = {
+      name: currentFile.name,
+      fileKey,
+      lang: scanResult.fixedLanguage || currentFile.lang,
+      content: fixed,
+    }
+    useStore.getState().updateFile(currentFile.name, fixed, 'ai')
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+    setScanResult((prev) => ({ ...prev, applied: true }))
+  }
+
   // Keyboard shortcut listener on editor textarea
   const handleKeyDown = (e) => {
     if (e.key === 'Tab') {
@@ -260,6 +308,57 @@ export default function CodeEditor({ tabId }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Health Score Badge if scanned */}
+          {scanResult && (
+            <div className="flex items-center gap-1.5 animate-fadeIn">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                  scanResult.healthScore >= 80
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                }`}
+                title="Code Quality & Security Score"
+              >
+                Health: {scanResult.healthScore}/100
+              </span>
+              {scanResult.fixedCode && !scanResult.applied && (
+                <button
+                  onClick={handleApplyScanFix}
+                  title="Apply AI fixed code to editor"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] transition-colors cursor-pointer shadow-sm animate-pulse"
+                >
+                  <Sparkles size={11} />
+                  <span>⚡ Apply Fix</span>
+                </button>
+              )}
+              {scanResult.applied && (
+                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 size={11} /> Fixed
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Scan Code Button */}
+          <button
+            onClick={handleScanCode}
+            disabled={isScanning}
+            title="Scan code for bugs, errors, and performance"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-ide-panel hover:bg-ide-border border border-ide-border text-ide-text-bright font-medium transition-colors cursor-pointer text-[11px] shadow-sm disabled:opacity-50"
+          >
+            {isScanning ? (
+              <>
+                <Sparkles size={11} className="text-amber-400 animate-spin" />
+                <span>Scanning...</span>
+              </>
+            ) : (
+              <>
+                <ShieldAlert size={11} className="text-amber-400" />
+                <span>Scan Code</span>
+              </>
+            )}
+          </button>
+
           {/* Run / Compile button */}
           <button
             onClick={handleRunCode}

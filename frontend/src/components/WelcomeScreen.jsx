@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   FileCode,
   FilePlus,
@@ -31,10 +31,77 @@ const RECENT_FILES = [
 ]
 
 export default function WelcomeScreen() {
-  const { createFile, openFile, setSidebarSection } = useStore()
+  const { createFile, openFile, loadFolder, setSidebarSection } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [showNewFileInput, setShowNewFileInput] = useState(false)
   const [fileNameInput, setFileNameInput] = useState('')
+  const folderInputRef = useRef(null)
+
+  const handleOpenFolder = async () => {
+    try {
+      if (window.showDirectoryPicker) {
+        const dirHandle = await window.showDirectoryPicker()
+        const files = []
+        async function readDirectory(handle, pathPrefix = '') {
+          for await (const entry of handle.values()) {
+            if (entry.kind === 'file') {
+              if (entry.name.startsWith('.') || entry.name.endsWith('.png') || entry.name.endsWith('.jpg') || entry.name.endsWith('.ico') || entry.name.endsWith('.exe')) continue
+              try {
+                const fileData = await entry.getFile()
+                const text = await fileData.text()
+                const relPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name
+                files.push({
+                  name: entry.name,
+                  path: relPath,
+                  content: text,
+                })
+              } catch (e) {
+                // Ignore binary/unreadable files
+              }
+            } else if (entry.kind === 'directory') {
+              if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') continue
+              await readDirectory(entry, pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name)
+            }
+          }
+        }
+        await readDirectory(dirHandle)
+        if (files.length > 0) {
+          loadFolder(dirHandle.name, files)
+          setSidebarSection('repositories')
+        }
+      } else if (folderInputRef.current) {
+        folderInputRef.current.click()
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError' && folderInputRef.current) {
+        folderInputRef.current.click()
+      }
+    }
+  }
+
+  const handleFolderInputChange = async (e) => {
+    const rawFiles = Array.from(e.target.files || [])
+    if (rawFiles.length === 0) return
+    const files = []
+    for (const f of rawFiles) {
+      if (f.name.startsWith('.') || f.size > 2 * 1024 * 1024) continue
+      try {
+        const text = await f.text()
+        files.push({
+          name: f.name,
+          path: f.webkitRelativePath || f.name,
+          content: text,
+        })
+      } catch (err) {
+        // Skip unreadable files
+      }
+    }
+    if (files.length > 0) {
+      const folderName = (rawFiles[0].webkitRelativePath || '').split('/')[0] || 'workspace'
+      loadFolder(folderName, files)
+      setSidebarSection('repositories')
+    }
+  }
 
   const filteredLanguages = VSCODE_LANGUAGES.filter(
     (lang) =>
@@ -136,20 +203,21 @@ export default function WelcomeScreen() {
                 </button>
 
                 <button
-                  onClick={() => setSidebarSection('repositories')}
+                  onClick={handleOpenFolder}
                   className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-lg text-xs text-ide-accent hover:bg-ide-panel/80 hover:text-ide-accent-hover transition-colors text-left cursor-pointer group"
                 >
                   <FolderOpen size={15} className="shrink-0" />
-                  <span className="font-medium group-hover:underline">Open File...</span>
+                  <span className="font-medium group-hover:underline">Open Folder...</span>
                 </button>
-
-                <button
-                  onClick={() => setSidebarSection('repositories')}
-                  className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-lg text-xs text-ide-accent hover:bg-ide-panel/80 hover:text-ide-accent-hover transition-colors text-left cursor-pointer group"
-                >
-                  <GitBranch size={15} className="shrink-0" />
-                  <span className="font-medium group-hover:underline">Clone Git Repository...</span>
-                </button>
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  className="hidden"
+                  onChange={handleFolderInputChange}
+                />
               </div>
             </div>
 

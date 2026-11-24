@@ -100,6 +100,49 @@ How can I help you build today?`,
 
   setAiTyping: (typing) => set({ isAiTyping: typing }),
 
+  // ── Folder & Workspace Loading ─────────────────────
+  loadFolder: (folderName, files) => {
+    if (!files || files.length === 0) return
+    const rootName = folderName || 'workspace'
+
+    files.forEach((f) => {
+      setCachedFile(f.name, f.content, f.lang || detectLanguage(f.name))
+      if (f.path && f.path !== f.name) {
+        setCachedFile(f.path, f.content, f.lang || detectLanguage(f.name))
+      }
+    })
+
+    const children = files.map((f, i) => ({
+      id: Date.now() + i + 1,
+      name: f.name,
+      path: f.path || f.name,
+      type: 'file',
+      lang: f.lang || detectLanguage(f.name),
+    }))
+
+    const folderNode = {
+      id: Date.now(),
+      name: rootName,
+      type: 'folder',
+      expanded: true,
+      children,
+    }
+
+    const firstFile = files.find((f) => !f.name.startsWith('.')) || files[0]
+
+    set((s) => ({
+      repositories: [folderNode, ...s.repositories.filter((r) => r.name !== rootName)],
+      activeRepoName: rootName,
+      selectedFile: firstFile,
+      openTabs: [
+        ...s.openTabs.filter((t) => t.id !== 'welcome' && t.id !== firstFile.name),
+        { id: firstFile.name, name: firstFile.name, icon: '📄', closable: true },
+      ],
+      activeEditorTab: firstFile.name,
+      lastFileAction: { type: 'opened_folder', folderName: rootName, filename: firstFile.name, timestamp: Date.now() },
+    }))
+  },
+
   // ── File Management Actions ─────────────────────────
   createFile: (rawName, content = null, by = 'user') => {
     const filename = (rawName || '').trim()

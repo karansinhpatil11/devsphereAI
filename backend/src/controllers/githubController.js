@@ -24,8 +24,8 @@ export async function getUser(req, res) {
  */
 export async function commitChanges(req, res) {
   try {
-    const { message, repo } = req.body
-    const result = await githubService.commitAndPush({ message, repo })
+    const { message, repo, path } = req.body
+    const result = await githubService.commitAndPush({ message, repo, path })
     return res.json(result)
   } catch (err) {
     console.error('[GitHub Commit Error]', err.message)
