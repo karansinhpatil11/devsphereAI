@@ -238,9 +238,13 @@ function detectTaskIntent(prompt, activeFile = null) {
 
   // 5. Bug Catching / Scanning Intent
   if (
-    /\b(?:catch|find|detect|scan|check|spot)\s+(?:for\s+)?(?:all\s+)?(?:bugs?|errors?|flaws?|vulnerabilit(?:y|ies)|issues?)\b/i.test(lower) ||
-    /^(?:catch|scan|check|find)\s+bugs?$/i.test(lower) ||
-    /\bcatch\s+bug\b/i.test(lower)
+    /\b(?:catch|find|detect|scan|check|spot|fix|heal|repair|debug|solve)\s+(?:for\s+)?(?:all\s+)?(?:the\s+)?(?:bugs?|errors?|flaws?|vulnerabilit(?:y|ies)|issues?|syntax\s+errors?|code\s+errors?)\b/i.test(lower) ||
+    /^(?:catch|scan|check|find|fix|debug|heal)\s+bugs?$/i.test(lower) ||
+    /\b(?:catch|fix|find|debug)\s+bug\b/i.test(lower) ||
+    /\bfix\s+(?:the\s+)?(?:error|errors|code|issue|issues)\b/i.test(lower) ||
+    /\bdebug\s+(?:this|my|active|the)?\s*(?:code|program|file)?\b/i.test(lower) ||
+    /^(?:debug|fix|repair)$/i.test(lower) ||
+    /\bwhy\s+(?:is\s+)?(?:my\s+)?(?:code|program)\s+(?:not\s+working|failing|broken|throwing\s+error)\b/i.test(lower)
   ) {
     return { type: 'bug_catch' }
   }
@@ -1102,6 +1106,9 @@ export default function AIAssistant() {
         if (fileCache[targetFile]) {
           fileCache[targetFile].content = message.code
         }
+        const base = targetFile.replace(/\.[^.]+$/, '')
+        if (fileCache[base]) fileCache[base].content = message.code
+
         if (window.__ideSetEditorCode) {
           window.__ideSetEditorCode(message.code, targetFile)
         }
@@ -1139,6 +1146,9 @@ export default function AIAssistant() {
     if (fileCache[target]) {
       fileCache[target].content = bugScanResult.fixedCode
     }
+    const base = target.replace(/\.[^.]+$/, '')
+    if (fileCache[base]) fileCache[base].content = bugScanResult.fixedCode
+
     if (window.__ideSetEditorCode) {
       window.__ideSetEditorCode(bugScanResult.fixedCode, target)
     }

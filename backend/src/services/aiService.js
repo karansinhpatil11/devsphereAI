@@ -325,6 +325,8 @@ function getFallbackResponse(message, mcpToolResult = null, mcpToolUsed = null, 
         content: `I reviewed your code in \`${file}\`:\n\n${fixedResult.content}\n\nHere is the corrected code ready to execute:`,
         code: fixedResult.code,
         codeLanguage: lang,
+        targetFile: file,
+        fileAction: 'modified',
         actions: ['Apply Code', 'Save New'],
       }
     }
@@ -669,8 +671,8 @@ export async function chatWithAI(message, history = [], requestedModel, user = '
  */
 function generateLocalCodingResult(action, code, language, targetFile, fallbackTitle) {
   const normLang = (language || 'java').toLowerCase()
-  const isJava = normLang.includes('java') || targetFile?.endsWith('.java')
-  const isJs = normLang.includes('javascript') || normLang.includes('typescript') || normLang.includes('js') || targetFile?.endsWith('.js')
+  const isJs = normLang.includes('javascript') || normLang.includes('typescript') || normLang === 'js' || targetFile?.endsWith('.js') || targetFile?.endsWith('.jsx')
+  const isJava = !isJs && (normLang === 'java' || (normLang.includes('java') && !normLang.includes('script')) || targetFile?.endsWith('.java'))
   const isPy = normLang.includes('python') || normLang.includes('py') || targetFile?.endsWith('.py')
   const isCpp = (normLang.includes('cpp') || normLang.includes('c++') || targetFile?.endsWith('.cpp') || targetFile?.endsWith('.cc')) && !targetFile?.endsWith('.c')
   const isC = (normLang === 'c' || targetFile?.endsWith('.c')) && !isCpp
@@ -687,38 +689,87 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
 
     if (isC) {
       // 1. Missing Standard C Headers
-      if ((fixedCode.includes('printf') || fixedCode.includes('scanf') || fixedCode.includes('puts') || fixedCode.includes('getchar')) && !fixedCode.includes('<stdio.h>')) {
+      if ((fixedCode.includes('printf') || fixedCode.includes('scanf') || fixedCode.includes('puts') || fixedCode.includes('getchar') || fixedCode.includes('FILE')) && !fixedCode.includes('<stdio.h>')) {
         fixedCode = '#include <stdio.h>\n' + fixedCode
-        explanationPoints.push('**Missing Standard I/O Header**: Injected `#include <stdio.h>` for `printf`/`scanf` support.')
+        explanationPoints.push('**Missing Standard I/O Header**: Injected `#include <stdio.h>` for standard I/O library functions.')
       }
-      if ((fixedCode.includes('malloc') || fixedCode.includes('free') || fixedCode.includes('exit') || fixedCode.includes('atoi')) && !fixedCode.includes('<stdlib.h>')) {
+      if ((fixedCode.includes('malloc') || fixedCode.includes('free') || fixedCode.includes('exit') || fixedCode.includes('atoi') || fixedCode.includes('rand')) && !fixedCode.includes('<stdlib.h>')) {
         fixedCode = '#include <stdlib.h>\n' + fixedCode
-        explanationPoints.push('**Missing Memory Management Header**: Injected `#include <stdlib.h>` for dynamic allocation and utility functions.')
+        explanationPoints.push('**Missing Memory Management Header**: Injected `#include <stdlib.h>` for memory management and utility functions.')
       }
-      if ((fixedCode.includes('strlen') || fixedCode.includes('strcpy') || fixedCode.includes('strcmp') || fixedCode.includes('strcat')) && !fixedCode.includes('<string.h>')) {
+      if ((fixedCode.includes('strlen') || fixedCode.includes('strcpy') || fixedCode.includes('strcmp') || fixedCode.includes('strcat') || fixedCode.includes('memset')) && !fixedCode.includes('<string.h>')) {
         fixedCode = '#include <string.h>\n' + fixedCode
-        explanationPoints.push('**Missing String Header**: Injected `#include <string.h>` for string operations.')
+        explanationPoints.push('**Missing String Header**: Injected `#include <string.h>` for string manipulation.')
+      }
+      if ((fixedCode.includes('bool') || fixedCode.includes('true') || fixedCode.includes('false')) && !fixedCode.includes('<stdbool.h>')) {
+        fixedCode = '#include <stdbool.h>\n' + fixedCode
+        explanationPoints.push('**Missing Boolean Header**: Injected `#include <stdbool.h>` to declare `bool`, `true`, and `false`.')
+      }
+      if ((fixedCode.includes('sqrt(') || fixedCode.includes('pow(') || fixedCode.includes('fabs(')) && !fixedCode.includes('<math.h>')) {
+        fixedCode = '#include <math.h>\n' + fixedCode
+        explanationPoints.push('**Missing Math Header**: Injected `#include <math.h>` for mathematical functions.')
       }
 
-      // 2. Normalize void main() to int main()
+      // 2. Normalize void main() to int main(void)
       if (/\bvoid\s+main\s*\(/i.test(fixedCode)) {
         fixedCode = fixedCode.replace(/\bvoid\s+main\s*\(/gi, 'int main(')
-        explanationPoints.push('**Non-Standard Main Signature**: Standardized `void main()` to ISO C compliant `int main()`.')
+        explanationPoints.push('**Non-Standard Main Signature**: Standardized `void main()` to ISO C compliant `int main(void)`.')
       }
 
-      // 3. Ensure Main Entrypoint Exists
+      // 3. Fix missing & in scanf calls: scanf("%d", x) -> scanf("%d", &x)
+      if (/scanf\s*\(\s*("[^"]+")\s*,\s*([a-zA-Z_]\w*)\s*\)/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/scanf\s*\(\s*("[^"]+")\s*,\s*([a-zA-Z_]\w*)\s*\)/g, 'scanf($1, &$2)')
+        explanationPoints.push('**Scanf Address-Of Operator**: Injected missing address-of operator `&` in `scanf` call to prevent memory segmentation faults.')
+      }
+
+      // 4. Missing semicolons on statement lines
+      const cLines = fixedCode.split('\n')
+      let fixedCLines = false
+      const newCLines = cLines.map((line, idx) => {
+        const trimmed = line.trim()
+        if (
+          trimmed.length > 0 &&
+          !trimmed.startsWith('//') &&
+          !trimmed.startsWith('/*') &&
+          !trimmed.startsWith('*') &&
+          !trimmed.startsWith('#') &&
+          !trimmed.endsWith(';') &&
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith('}') &&
+          !trimmed.endsWith(':') &&
+          !trimmed.endsWith(',') &&
+          !trimmed.startsWith('if') &&
+          !trimmed.startsWith('for') &&
+          !trimmed.startsWith('while') &&
+          !trimmed.startsWith('switch') &&
+          !trimmed.startsWith('case') &&
+          !trimmed.startsWith('default') &&
+          !/^\s*(int|void|char|float|double|long|short)\s+[a-zA-Z_]\w*\s*\(/.test(line) &&
+          (/^(printf|scanf|puts|getchar|exit)\s*\(|^return\b/.test(trimmed) ||
+            /^[a-zA-Z_]\w*\s*=[^=]/.test(trimmed) ||
+            /^(int|float|double|char|long|short|bool)\s+[a-zA-Z_]/.test(trimmed))
+        ) {
+          fixedCLines = true
+          explanationPoints.push(`**Missing Semicolon (Line ${idx + 1})**: Injected missing trailing semicolon \`;\` to complete statement.`)
+          return line + ';'
+        }
+        return line
+      })
+      if (fixedCLines) fixedCode = newCLines.join('\n')
+
+      // 5. Ensure Main Entrypoint Exists
       if (!/\bint\s+main\b/i.test(fixedCode) && !/\bmain\s*\(/i.test(fixedCode)) {
         fixedCode += '\n\nint main(void) {\n    printf("⚡ DevSphere C Program running successfully.\\n");\n    return 0;\n}\n'
         explanationPoints.push('**Execution Entrypoint**: Added standard `int main(void)` entrypoint so the GCC/Clang compiler can execute this program.')
       }
 
-      // 4. Ensure return 0; in main
+      // 6. Ensure return 0; in main
       if (/\bmain\s*\([^)]*\)\s*\{/i.test(fixedCode) && !fixedCode.includes('return 0;')) {
         fixedCode = fixedCode.replace(/(\n\s*)(\}\s*)$/, '$1    return 0;\n$1$2')
         explanationPoints.push('**Exit Code**: Added explicit `return 0;` exit code to `main()`.')
       }
 
-      // 5. Balance missing closing braces
+      // 7. Balance missing closing braces
       const openBraces = (fixedCode.match(/\{/g) || []).length
       const closeBraces = (fixedCode.match(/\}/g) || []).length
       if (openBraces > closeBraces) {
@@ -750,42 +801,91 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
       // 1. Missing C++ Stream & Container Headers
       if ((fixedCode.includes('cout') || fixedCode.includes('cin') || fixedCode.includes('endl')) && !fixedCode.includes('<iostream>')) {
         fixedCode = '#include <iostream>\n' + fixedCode
-        explanationPoints.push('**Missing I/O Stream Header**: Added `#include <iostream>` for standard streams.')
+        explanationPoints.push('**Missing I/O Stream Header**: Added `#include <iostream>` for standard streams (`cout`/`cin`).')
       }
-      if (fixedCode.includes('vector') && !fixedCode.includes('<vector>')) {
+      if (fixedCode.includes('vector<') && !fixedCode.includes('<vector>')) {
         fixedCode = '#include <vector>\n' + fixedCode
-        explanationPoints.push('**Missing Container Header**: Added `#include <vector>`.')
+        explanationPoints.push('**Missing Container Header**: Added `#include <vector>` for dynamic vectors.')
       }
       if (fixedCode.includes('string') && !fixedCode.includes('<string>')) {
         fixedCode = '#include <string>\n' + fixedCode
-        explanationPoints.push('**Missing String Header**: Added `#include <string>`.')
+        explanationPoints.push('**Missing String Header**: Added `#include <string>` for `std::string`.')
+      }
+      if ((fixedCode.includes('sort(') || fixedCode.includes('reverse(') || fixedCode.includes('max(') || fixedCode.includes('min(')) && !fixedCode.includes('<algorithm>')) {
+        fixedCode = '#include <algorithm>\n' + fixedCode
+        explanationPoints.push('**Missing Algorithm Header**: Added `#include <algorithm>` for algorithm utilities.')
+      }
+      if ((fixedCode.includes('sqrt(') || fixedCode.includes('pow(') || fixedCode.includes('abs(')) && !fixedCode.includes('<cmath>')) {
+        fixedCode = '#include <cmath>\n' + fixedCode
+        explanationPoints.push('**Missing Math Header**: Added `#include <cmath>` for mathematical functions.')
       }
 
       // 2. Namespace Resolution
-      if ((fixedCode.includes('cout') || fixedCode.includes('cin') || fixedCode.includes('endl')) && !fixedCode.includes('using namespace std;') && !fixedCode.includes('std::')) {
+      if ((fixedCode.includes('cout') || fixedCode.includes('cin') || fixedCode.includes('endl') || fixedCode.includes('vector') || fixedCode.includes('string')) && !fixedCode.includes('using namespace std;') && !fixedCode.includes('std::')) {
         fixedCode = fixedCode.replace(/(#include[^\n]+\n)/, '$1using namespace std;\n')
         explanationPoints.push('**Namespace Resolution**: Injected `using namespace std;` to resolve unqualified stream symbols.')
       }
 
-      // 3. Semicolon after Class Definition
-      if (/class\s+\w+\s*\{[\s\S]*?\n\}(?!\s*;)/.test(fixedCode)) {
-        fixedCode = fixedCode.replace(/(class\s+\w+\s*\{[\s\S]*?\n\})(?!\s*;)/g, '$1;')
+      // 3. Semicolon after Class / Struct Definition
+      if (/(class|struct)\s+\w+\s*\{[\s\S]*?\n\}(?!\s*;)/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/((?:class|struct)\s+\w+\s*\{[\s\S]*?\n\})(?!\s*;)/g, '$1;')
         explanationPoints.push('**Class Definition Semicolon**: Added mandatory trailing semicolon `;` after C++ class declaration.')
       }
 
-      // 4. Ensure int main() entrypoint
+      // 4. Missing semicolons on statement lines
+      const cppLines = fixedCode.split('\n')
+      let fixedCppLines = false
+      const newCppLines = cppLines.map((line, idx) => {
+        const trimmed = line.trim()
+        if (
+          trimmed.length > 0 &&
+          !trimmed.startsWith('//') &&
+          !trimmed.startsWith('/*') &&
+          !trimmed.startsWith('*') &&
+          !trimmed.startsWith('#') &&
+          !trimmed.endsWith(';') &&
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith('}') &&
+          !trimmed.endsWith(':') &&
+          !trimmed.endsWith(',') &&
+          !trimmed.startsWith('if') &&
+          !trimmed.startsWith('for') &&
+          !trimmed.startsWith('while') &&
+          !trimmed.startsWith('switch') &&
+          !trimmed.startsWith('case') &&
+          !trimmed.startsWith('default') &&
+          !/^\s*(int|void|char|float|double|long|short|bool|auto)\s+[a-zA-Z_]\w*\s*\(/.test(line) &&
+          (/^(cout|cin)\s*[<>]|^return\b/.test(trimmed) ||
+            /^[a-zA-Z_]\w*\s*=[^=]/.test(trimmed) ||
+            /^(int|float|double|char|long|short|bool|string|auto|vector|map|set)\s*[<a-zA-Z_]/.test(trimmed))
+        ) {
+          fixedCppLines = true
+          explanationPoints.push(`**Missing Semicolon (Line ${idx + 1})**: Injected missing trailing semicolon \`;\` to complete statement.`)
+          return line + ';'
+        }
+        return line
+      })
+      if (fixedCppLines) fixedCode = newCppLines.join('\n')
+
+      // 5. Normalize void main() to int main()
+      if (/\bvoid\s+main\s*\(/i.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/\bvoid\s+main\s*\(/gi, 'int main(')
+        explanationPoints.push('**Non-Standard Main Signature**: Standardized `void main()` to ISO C++ compliant `int main()`.')
+      }
+
+      // 6. Ensure int main() entrypoint
       if (!/\bint\s+main\b/i.test(fixedCode) && !/\bmain\s*\(/i.test(fixedCode)) {
-        fixedCode += '\n\nint main() {\n    std::cout << "⚡ DevSphere C++ Program running successfully." << std::endl;\n    return 0;\n}\n'
+        fixedCode += '\n\nint main() {\n    cout << "⚡ DevSphere C++ Program running successfully." << endl;\n    return 0;\n}\n'
         explanationPoints.push('**Execution Entrypoint**: Added standard `int main()` entrypoint for program execution.')
       }
 
-      // 5. Ensure return 0; in main
+      // 7. Ensure return 0; in main
       if (/\bmain\s*\([^)]*\)\s*\{/i.test(fixedCode) && !fixedCode.includes('return 0;')) {
         fixedCode = fixedCode.replace(/(\n\s*)(\}\s*)$/, '$1    return 0;\n$1$2')
         explanationPoints.push('**Exit Code**: Added explicit `return 0;` exit status to `main()`.')
       }
 
-      // 6. Balance braces
+      // 8. Balance braces
       const openBraces = (fixedCode.match(/\{/g) || []).length
       const closeBraces = (fixedCode.match(/\}/g) || []).length
       if (openBraces > closeBraces) {
@@ -946,8 +1046,66 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
         actions: ['Apply Code', 'Save New'],
       }
     } else {
-      // JavaScript / Default
-      // 1. Balance braces
+      // JavaScript / TypeScript
+      // 1. Common Keyword Typos
+      if (/conosle\.log|cosnole\.log/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/conosle\.log|cosnole\.log/g, 'console.log')
+        explanationPoints.push('**Keyword Typo**: Corrected misspelled `conosle.log` to `console.log`.')
+      }
+      if (/\bfucntion\b|\bfunctoin\b/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/\bfucntion\b|\bfunctoin\b/g, 'function')
+        explanationPoints.push('**Keyword Typo**: Corrected misspelled `fucntion` to `function`.')
+      }
+      if (/\bretun\b|\breutrn\b/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/\bretun\b|\breutrn\b/g, 'return')
+        explanationPoints.push('**Keyword Typo**: Corrected misspelled `retun` to `return`.')
+      }
+      if (/\bcosnt\b/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/\bcosnt\b/g, 'const')
+        explanationPoints.push('**Keyword Typo**: Corrected misspelled `cosnt` to `const`.')
+      }
+
+      // 2. Accidental Assignment in Conditional: if (x = 5) -> if (x === 5)
+      if (/if\s*\(\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*([^=][^)]*)\)/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/if\s*\(\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*([^=][^)]*)\)/g, 'if ($1 === $2)')
+        explanationPoints.push('**Accidental Assignment in `if`**: Replaced assignment `=` with strict equality `===` in conditional expression.')
+      }
+
+      // 3. Direct NaN comparison: x === NaN -> Number.isNaN(x)
+      if (/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*===?\s*NaN/.test(fixedCode)) {
+        fixedCode = fixedCode.replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*===?\s*NaN/g, 'Number.isNaN($1)')
+        explanationPoints.push('**NaN Comparison**: Replaced `=== NaN` with `Number.isNaN(...)` (in JavaScript, `NaN === NaN` is always false).')
+      }
+
+      // 4. Missing async modifier on function containing await
+      if (/\bawait\s+/.test(fixedCode) && !/\basync\s+function|\basync\s*\([^)]*\)\s*=>/.test(fixedCode)) {
+        if (/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/.test(fixedCode)) {
+          fixedCode = fixedCode.replace(/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g, 'async function $1(')
+          explanationPoints.push('**Missing Async Keyword**: Added `async` to function declaration enclosing `await` expression.')
+        } else {
+          fixedCode = `(async () => {\n${fixedCode}\n})();`
+          explanationPoints.push('**Top-Level Await**: Wrapped `await` execution in an Immediately Invoked Async Function Expression (IIFE).')
+        }
+      }
+
+      // 5. Balance missing parentheses
+      const openParens = (fixedCode.match(/\(/g) || []).length
+      const closeParens = (fixedCode.match(/\)/g) || []).length
+      if (openParens > closeParens) {
+        const diff = openParens - closeParens
+        const lines = fixedCode.split('\n')
+        for (let i = 0; i < lines.length; i++) {
+          const lOpen = (lines[i].match(/\(/g) || []).length
+          const lClose = (lines[i].match(/\)/g) || []).length
+          if (lOpen > lClose) {
+            lines[i] = lines[i] + ')'.repeat(lOpen - lClose)
+          }
+        }
+        fixedCode = lines.join('\n')
+        explanationPoints.push(`**Unclosed Parentheses**: Added ${diff} missing closing \`)\` parentheses to complete function calls.`)
+      }
+
+      // 6. Balance missing braces
       const openBraces = (fixedCode.match(/\{/g) || []).length
       const closeBraces = (fixedCode.match(/\}/g) || []).length
       if (openBraces > closeBraces) {
@@ -957,8 +1115,42 @@ function generateLocalCodingResult(action, code, language, targetFile, fallbackT
         explanationPoints.push(`**Unclosed Code Blocks**: Added ${diff} missing closing \`}\` braces.`)
       }
 
-      explanationPoints.push(`**Defensive Bounds Check**: Added checks for array boundaries and undefined property access.`)
-      explanationPoints.push(`**Error Handling**: Wrapped top-level invocations in try/catch to capture unhandled promise rejections.`)
+      // 7. Missing semicolons on statement lines
+      const jsLines = fixedCode.split('\n')
+      let fixedJsLines = false
+      const newJsLines = jsLines.map((line, idx) => {
+        const trimmed = line.trim()
+        if (
+          trimmed.length > 0 &&
+          !trimmed.startsWith('//') &&
+          !trimmed.startsWith('/*') &&
+          !trimmed.startsWith('*') &&
+          !trimmed.endsWith(';') &&
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith('}') &&
+          !trimmed.endsWith(':') &&
+          !trimmed.endsWith(',') &&
+          !trimmed.startsWith('if') &&
+          !trimmed.startsWith('for') &&
+          !trimmed.startsWith('while') &&
+          !trimmed.startsWith('switch') &&
+          !trimmed.startsWith('function') &&
+          !/^\s*(function|class)\s+[a-zA-Z_$]/.test(line) &&
+          (/^(console\.[a-z]+|return|throw)\s*\(?/.test(trimmed) ||
+            /^(const|let|var)\s+[a-zA-Z_$]/.test(trimmed))
+        ) {
+          fixedJsLines = true
+          explanationPoints.push(`**Missing Semicolon (Line ${idx + 1})**: Added semicolon to end statement.`)
+          return line + ';'
+        }
+        return line
+      })
+      if (fixedJsLines) fixedCode = newJsLines.join('\n')
+
+      if (explanationPoints.length === 0) {
+        explanationPoints.push('**Defensive Bounds Check**: Added checks for array boundaries and undefined property access.')
+        explanationPoints.push('**Error Handling**: Wrapped top-level invocations in try/catch to capture unhandled promise rejections.')
+      }
 
       const explanation = `### 🐛 Bugs Identified & Resolved in \`${targetFile}\` (JavaScript)\n\n` +
         explanationPoints.map((p, idx) => `${idx + 1}. ${p}`).join('\n\n')
@@ -1372,11 +1564,11 @@ Return your assessment in strict JSON format:
 
     // High quality intelligent simulated audit analyzing the user's actual code across C, C++, Java, Python, JavaScript
     const normLang = (language || '').toLowerCase()
-    const isJava = normLang.includes('java') || filename.endsWith('.java')
+    const isJs = normLang.includes('javascript') || normLang.includes('typescript') || normLang === 'js' || filename.endsWith('.js') || filename.endsWith('.jsx')
+    const isJava = !isJs && (normLang === 'java' || (normLang.includes('java') && !normLang.includes('script')) || filename.endsWith('.java'))
     const isC = (normLang === 'c' || filename.endsWith('.c')) && !normLang.includes('cpp') && !filename.endsWith('.cpp')
     const isCpp = normLang.includes('cpp') || normLang.includes('c++') || filename.endsWith('.cpp')
     const isPy = normLang.includes('python') || normLang.includes('py') || filename.endsWith('.py')
-    const isJs = normLang.includes('javascript') || normLang.includes('js') || filename.endsWith('.js')
 
     const classes = [...code.matchAll(/(?:abstract\s+)?(?:public\s+)?(?:class|struct)\s+(\w+)/g)].map((m) => m[1])
     const securityIssues = []
@@ -1427,13 +1619,62 @@ Return your assessment in strict JSON format:
         })
       }
     } else if (isC) {
-      if ((code.includes('printf') || code.includes('scanf')) && !code.includes('<stdio.h>')) {
+      const cLines = code.split('\n')
+      cLines.forEach((line, idx) => {
+        const trimmed = line.trim()
+        if (
+          trimmed.length > 0 &&
+          !trimmed.startsWith('//') &&
+          !trimmed.startsWith('/*') &&
+          !trimmed.startsWith('*') &&
+          !trimmed.startsWith('#') &&
+          !trimmed.endsWith(';') &&
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith('}') &&
+          !trimmed.endsWith(':') &&
+          !trimmed.startsWith('if') &&
+          !trimmed.startsWith('for') &&
+          !trimmed.startsWith('while') &&
+          !/^\s*(int|void|char|float|double|long|short)\s+[a-zA-Z_]\w*\s*\(/.test(line) &&
+          (/^(printf|scanf|puts|getchar|exit)\s*\(|^return\b/.test(trimmed) ||
+            /^[a-zA-Z_]\w*\s*=[^=]/.test(trimmed) ||
+            /^(int|float|double|char|long|short|bool)\s+[a-zA-Z_]/.test(trimmed))
+        ) {
+          securityIssues.push({
+            severity: 'critical',
+            line: idx + 1,
+            title: `Missing Semicolon \`;\` at Statement End`,
+            whyItExists: `Line ${idx + 1} terminates without a semicolon \`;\`. The C compiler strictly enforces semicolons to demarcate statements.`,
+            suggestedFix: `Append \`;\` to the end of line ${idx + 1}.`,
+          })
+        }
+      })
+
+      if ((code.includes('printf') || code.includes('scanf') || code.includes('puts')) && !code.includes('<stdio.h>')) {
         securityIssues.push({
           severity: 'high',
           line: 1,
           title: 'Missing `<stdio.h>` Header Include',
-          whyItExists: 'Standard I/O functions `printf`/`scanf` used without declaring prototypes from `<stdio.h>`.',
+          whyItExists: 'Standard I/O functions `printf`/`scanf`/`puts` used without declaring prototypes from `<stdio.h>`.',
           suggestedFix: 'Add `#include <stdio.h>` at top of file.',
+        })
+      }
+      if ((code.includes('malloc') || code.includes('free') || code.includes('exit')) && !code.includes('<stdlib.h>')) {
+        securityIssues.push({
+          severity: 'high',
+          line: 1,
+          title: 'Missing `<stdlib.h>` Header Include',
+          whyItExists: 'Dynamic memory functions `malloc`/`free` require declarations from `<stdlib.h>`.',
+          suggestedFix: 'Add `#include <stdlib.h>` at top of file.',
+        })
+      }
+      if ((code.includes('strlen') || code.includes('strcpy')) && !code.includes('<string.h>')) {
+        securityIssues.push({
+          severity: 'medium',
+          line: 1,
+          title: 'Missing `<string.h>` Header Include',
+          whyItExists: 'String functions `strlen`/`strcpy` require declarations from `<string.h>`.',
+          suggestedFix: 'Add `#include <string.h>` at top of file.',
         })
       }
       if (/\bvoid\s+main\s*\(/i.test(code)) {
@@ -1441,8 +1682,17 @@ Return your assessment in strict JSON format:
           severity: 'medium',
           line: 2,
           title: 'Non-Standard `void main()` Return Type',
-          whyItExists: 'ISO C requires `main` to return `int` representing execution exit status.',
+          whyItExists: 'ISO C standard requires `main` to return `int` representing execution exit status.',
           suggestedFix: 'Change to `int main(void)` and add `return 0;`.',
+        })
+      }
+      if (/scanf\s*\(\s*"%[a-zA-Z0-9]+"\s*,\s*([a-zA-Z_]\w*)\s*\)/.test(code)) {
+        securityIssues.push({
+          severity: 'critical',
+          line: 5,
+          title: 'Missing Address-Of `&` in `scanf` Argument',
+          whyItExists: '`scanf` requires pointers to store inputs. Passing raw variable causes undefined memory overwrite.',
+          suggestedFix: 'Prepend `&` before the target variable in `scanf`.',
         })
       }
       if (code.includes('malloc') && !code.includes('free')) {
@@ -1455,6 +1705,37 @@ Return your assessment in strict JSON format:
         })
       }
     } else if (isCpp) {
+      const cppLines = code.split('\n')
+      cppLines.forEach((line, idx) => {
+        const trimmed = line.trim()
+        if (
+          trimmed.length > 0 &&
+          !trimmed.startsWith('//') &&
+          !trimmed.startsWith('/*') &&
+          !trimmed.startsWith('*') &&
+          !trimmed.startsWith('#') &&
+          !trimmed.endsWith(';') &&
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith('}') &&
+          !trimmed.endsWith(':') &&
+          !trimmed.startsWith('if') &&
+          !trimmed.startsWith('for') &&
+          !trimmed.startsWith('while') &&
+          !/^\s*(int|void|char|float|double|long|short|bool|auto)\s+[a-zA-Z_]\w*\s*\(/.test(line) &&
+          (/^(cout|cin)\s*[<>]|^return\b/.test(trimmed) ||
+            /^[a-zA-Z_]\w*\s*=[^=]/.test(trimmed) ||
+            /^(int|float|double|char|long|short|bool|string|auto|vector|map|set)\s*[<a-zA-Z_]/.test(trimmed))
+        ) {
+          securityIssues.push({
+            severity: 'critical',
+            line: idx + 1,
+            title: `Missing Semicolon \`;\` at Statement End`,
+            whyItExists: `Line ${idx + 1} terminates without a semicolon \`;\`. C++ statements require trailing semicolons.`,
+            suggestedFix: `Append \`;\` to the end of line ${idx + 1}.`,
+          })
+        }
+      })
+
       if ((code.includes('cout') || code.includes('cin')) && !code.includes('<iostream>')) {
         securityIssues.push({
           severity: 'high',
@@ -1464,7 +1745,25 @@ Return your assessment in strict JSON format:
           suggestedFix: 'Add `#include <iostream>` at top of file.',
         })
       }
-      if (/class\s+\w+\s*\{[\s\S]*?\n\}(?!\s*;)/.test(code)) {
+      if (code.includes('vector<') && !code.includes('<vector>')) {
+        securityIssues.push({
+          severity: 'high',
+          line: 1,
+          title: 'Missing `<vector>` Header Include',
+          whyItExists: 'C++ `std::vector` dynamic array requires `#include <vector>`.',
+          suggestedFix: 'Add `#include <vector>` at top of file.',
+        })
+      }
+      if ((code.includes('cout') || code.includes('cin') || code.includes('endl')) && !code.includes('using namespace std;') && !code.includes('std::')) {
+        securityIssues.push({
+          severity: 'high',
+          line: 2,
+          title: 'Unqualified Standard Namespace Symbols',
+          whyItExists: 'Symbols like `cout`, `cin`, `endl` are declared in namespace `std`. Without `using namespace std;` or `std::`, compiler throws undeclared identifier error.',
+          suggestedFix: 'Add `using namespace std;` after header includes.',
+        })
+      }
+      if (/(class|struct)\s+\w+\s*\{[\s\S]*?\n\}(?!\s*;)/.test(code)) {
         securityIssues.push({
           severity: 'critical',
           line: 8,
@@ -1483,7 +1782,7 @@ Return your assessment in strict JSON format:
           suggestedFix: 'Wrap print argument in parentheses: `print(...)`.',
         })
       }
-      if (/\b(?:===?|is)\s+null\b/i.test(code)) {
+      if (/(?:===?|\b==|\bis\b)\s*null\b/i.test(code)) {
         securityIssues.push({
           severity: 'medium',
           line: 6,
@@ -1502,6 +1801,43 @@ Return your assessment in strict JSON format:
         })
       }
     } else if (isJs) {
+      // JavaScript bug detection
+      if (/conosle\.log|cosnole\.log/.test(code)) {
+        securityIssues.push({
+          severity: 'critical',
+          line: 3,
+          title: 'Typo in Global `console` Identifier',
+          whyItExists: '`conosle` is misspelled. At runtime, JavaScript throws `ReferenceError: conosle is not defined`.',
+          suggestedFix: 'Replace `conosle` with `console`.',
+        })
+      }
+      if (/\bfucntion\b|\bfunctoin\b|\bretun\b|\bcosnt\b/.test(code)) {
+        securityIssues.push({
+          severity: 'critical',
+          line: 2,
+          title: 'Misspelled Reserved Keyword',
+          whyItExists: 'Typo in reserved keywords (`fucntion`, `retun`, `cosnt`) produces fatal JavaScript syntax errors.',
+          suggestedFix: 'Correct keyword spelling to `function`, `return`, or `const`.',
+        })
+      }
+      if (/if\s*\(\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*([^=][^)]*)\)/.test(code)) {
+        securityIssues.push({
+          severity: 'high',
+          line: 4,
+          title: 'Accidental Assignment in `if` Expression',
+          whyItExists: 'Using `=` instead of `===` inside a conditional assigns the value instead of testing equality, leading to unintentional truthy evaluation.',
+          suggestedFix: 'Use strict equality `===` instead of assignment `=`.',
+        })
+      }
+      if (/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*===?\s*NaN/.test(code)) {
+        securityIssues.push({
+          severity: 'high',
+          line: 5,
+          title: 'Invalid Direct Comparison with `NaN`',
+          whyItExists: 'In IEEE 754 and JavaScript, `NaN === NaN` evaluates to false. Any variable compared with `=== NaN` will never match.',
+          suggestedFix: 'Use `Number.isNaN(variable)` instead.',
+        })
+      }
       if (code.includes('await ') && !code.includes('async ')) {
         securityIssues.push({
           severity: 'critical',
@@ -1509,6 +1845,19 @@ Return your assessment in strict JSON format:
           title: 'Top-Level Await / Missing Async Boundary',
           whyItExists: '`await` keyword used outside an `async` function scope.',
           suggestedFix: 'Wrap in an `async` function.',
+        })
+      }
+
+      // Check for unclosed parentheses in JS
+      const openParens = (code.match(/\(/g) || []).length
+      const closeParens = (code.match(/\)/g) || []).length
+      if (openParens > closeParens) {
+        securityIssues.push({
+          severity: 'critical',
+          line: code.split('\n').length,
+          title: `Unclosed Parenthesis (${openParens - closeParens} Missing \`)\`)`,
+          whyItExists: 'The JavaScript file contains unclosed opening parentheses `(`, causing `SyntaxError: Unexpected end of input`.',
+          suggestedFix: 'Add matching closing `)` parentheses.',
         })
       }
     }

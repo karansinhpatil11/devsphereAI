@@ -78,6 +78,7 @@ export default function CodeEditor({ tabId }) {
       const file = fileCache[target] || fileCache[currentFile.name] || fileCache[fileKey]
       if (file && file.content !== undefined) {
         setCode(file.content)
+        if (textareaRef.current) textareaRef.current.value = file.content
         window.__ideActiveCode = {
           name: currentFile.name,
           fileKey,
@@ -95,12 +96,15 @@ export default function CodeEditor({ tabId }) {
     window.__ideSetEditorCode = (newContent, targetFilename) => {
       if (typeof newContent !== 'string') return
       setCode(newContent)
+      if (textareaRef.current) textareaRef.current.value = newContent
       if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = newContent
       if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = newContent
       if (targetFilename && fileCache[targetFilename]) fileCache[targetFilename].content = newContent
+      const resolved = resolveFileKey(targetFilename || '')
+      if (resolved && fileCache[resolved]) fileCache[resolved].content = newContent
       window.__ideActiveCode = {
         name: currentFile?.name || targetFilename || 'Main.java',
-        fileKey,
+        fileKey: resolved || fileKey,
         lang: currentFile?.lang || detectLanguage(targetFilename || currentFile?.name || 'Main.java'),
         content: newContent,
       }
@@ -112,12 +116,15 @@ export default function CodeEditor({ tabId }) {
       if (!e.detail || typeof e.detail.code !== 'string') return
       const target = e.detail.filename || ''
       setCode(e.detail.code)
+      if (textareaRef.current) textareaRef.current.value = e.detail.code
       if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = e.detail.code
       if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = e.detail.code
       if (target && fileCache[target]) fileCache[target].content = e.detail.code
+      const resolved = resolveFileKey(target || '')
+      if (resolved && fileCache[resolved]) fileCache[resolved].content = e.detail.code
       window.__ideActiveCode = {
         name: currentFile?.name || target || 'Main.java',
-        fileKey,
+        fileKey: resolved || fileKey,
         lang: currentFile?.lang || detectLanguage(currentFile?.name || target || 'Main.java'),
         content: e.detail.code,
       }
@@ -234,9 +241,11 @@ export default function CodeEditor({ tabId }) {
     if (textareaRef.current) textareaRef.current.value = fixed
     if (fileKey && fileCache[fileKey]) fileCache[fileKey].content = fixed
     if (currentFile?.name && fileCache[currentFile.name]) fileCache[currentFile.name].content = fixed
+    const resolved = resolveFileKey(currentFile?.name || fileKey)
+    if (resolved && fileCache[resolved]) fileCache[resolved].content = fixed
     window.__ideActiveCode = {
       name: currentFile.name,
-      fileKey,
+      fileKey: resolved || fileKey,
       lang: scanResult.fixedLanguage || currentFile.lang,
       content: fixed,
     }
