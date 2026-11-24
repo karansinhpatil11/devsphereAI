@@ -1204,7 +1204,7 @@ The AI Developer Assistant is a pair-programming platform embedding autonomous c
     title,
     category,
     content,
-    tags: [project.name, docType, 'ai-generated'],
+    tags: [project.name, docType, 'ai-generated', 'microservice'],
   }
 }
 

@@ -42,6 +42,8 @@ import {
   generatePRDescription,
   githubAPI,
   docAPI,
+  compilerAPI,
+  taskAPI,
 } from '../services/api'
 
 // ── Code Block Component ─────────────────────────────
@@ -194,18 +196,110 @@ function ModelSelector({ model, onChange }) {
   )
 }
 
-// ── File intent detection helper ─────────────────────
-function detectFileIntent(prompt) {
-  const createMatch = prompt.match(/(?:create|new|make|write|generate)\s+(?:a\s+)?(?:file\s+)?(?:named?\s+)?[`"']?(\w+\.\w+)[`"']?/i)
-  if (createMatch) return { action: 'create', filename: createMatch[1] }
+// ── Task & File Intent Detection Engine ─────────────────────
+function detectTaskIntent(prompt, activeFile = null) {
+  const p = (prompt || '').trim()
+  const lower = p.toLowerCase()
 
-  const modifyMatch = prompt.match(/(?:modify|update|edit|change|fix|refactor|add\s+to|improve)\s+(?:the\s+)?(?:file\s+)?[`"']?(\w+\.\w+)[`"']?/i)
-  if (modifyMatch) return { action: 'modify', filename: modifyMatch[1] }
+  // 1. Run / Execute Code
+  if (
+    /^(?:run|execute|compile|start)(?:\s+(?:the|this|my|active)?\s*(?:code|program|file|script|main)?)?$/i.test(lower) ||
+    /\b(?:run|execute)\s+(?:the\s+)?(?:code|program|file|script)\b/i.test(lower) ||
+    /\b(?:run|execute)\s+(?:this|active)\b/i.test(lower)
+  ) {
+    return { type: 'run' }
+  }
 
-  const inFileMatch = prompt.match(/\bin\s+[`"']?(\w+\.\w+)[`"']?\s*$/i)
-  if (inFileMatch) return { action: 'modify', filename: inFileMatch[1] }
+  // 2. Task Tracker: Create / Complete / Delete Task
+  if (/\b(?:create|add|new)\s+(?:a\s+)?(?:task|todo)\b/i.test(lower) || /^todo:\s*/i.test(lower)) {
+    let title = p.replace(/^(?:please\s+)?(?:create|add|new)\s+(?:a\s+)?(?:task|todo)\s*(?::|-)?\s*/i, '').trim()
+    title = title.replace(/^todo:\s*/i, '').trim()
+    const priorityMatch = p.match(/\b(high|medium|low)\s+priority\b/i) || p.match(/\bpriority\s+(high|medium|low)\b/i)
+    const priority = priorityMatch ? (priorityMatch[1] || priorityMatch[2]).toLowerCase() : 'medium'
+    return { type: 'task_create', title: title || 'New Development Task', priority }
+  }
 
-  return null
+  if (/\b(?:complete|finish|done|close|mark)\s+(?:task|todo)\b/i.test(lower) || /\bmark\s+(?:task\s+)?[\w-]+\s+(?:as\s+)?done\b/i.test(lower)) {
+    const idMatch = p.match(/task-[\w-]+/i) || p.match(/task\s+(\d+)/i) || p.match(/\b(\d+)\b/)
+    const taskId = idMatch ? (idMatch[0].startsWith('task-') ? idMatch[0] : `task-${idMatch[1] || idMatch[0]}`) : 'task-1'
+    return { type: 'task_complete', taskId }
+  }
+
+  if (/\b(?:delete|remove)\s+(?:task|todo)\b/i.test(lower)) {
+    const idMatch = p.match(/task-[\w-]+/i) || p.match(/task\s+(\d+)/i) || p.match(/\b(\d+)\b/)
+    const taskId = idMatch ? (idMatch[0].startsWith('task-') ? idMatch[0] : `task-${idMatch[1] || idMatch[0]}`) : 'task-1'
+    return { type: 'task_delete', taskId }
+  }
+
+  // 3. Documentation generation
+  if (/\b(?:generate|create|write|make)\s+(?:a\s+)?(?:doc|docs|documentation|readme|api\s+docs?|install\s+guide|project\s+summary)\b/i.test(lower)) {
+    let docType = 'readme'
+    if (lower.includes('api')) docType = 'api_docs'
+    else if (lower.includes('install')) docType = 'installation'
+    else if (lower.includes('summary')) docType = 'summary'
+    return { type: 'doc_generate', docType }
+  }
+
+  // 4. Unit Test Generation
+  if (/\b(?:generate|create|write|make|build)\s+(?:a\s+)?(?:unit\s+)?(?:tests?|test\s+suite|junit|pytest)\b/i.test(lower)) {
+    return { type: 'test_generate' }
+  }
+
+  // 5. Code Modification / Fixing (Active File)
+  const isModifyPrompt = /\b(?:modify|update|edit|change|fix|repair|heal|refactor|clean|optimize|improve|rewrite|add\s+(?:a\s+)?(?:function|method|logging|error\s+handling|null\s+checks?))\b/i.test(lower)
+  
+  // Check if specific file is named
+  const explicitFileMatch = p.match(/[`"']?(\w+\.(?:java|py|js|cpp|c))[`"']?/i)
+  if (explicitFileMatch) {
+    const filename = explicitFileMatch[1]
+    if (isModifyPrompt) {
+      return { type: 'file_modify', filename }
+    } else if (/\b(?:create|new|make|write|generate|build)\b/i.test(lower)) {
+      return { type: 'file_create', filename }
+    }
+  }
+
+  if (isModifyPrompt) {
+    const targetFile = activeFile?.name && activeFile.name !== 'welcome' && activeFile.name !== 'compiler'
+      ? activeFile.name
+      : null
+    if (targetFile) {
+      return { type: 'file_modify', filename: targetFile }
+    }
+  }
+
+  // 6. Code / File Creation without explicit extension
+  if (
+    /\b(?:create|write|make|generate|build|code)\s+(?:a\s+)?(?:new\s+)?(?:file|program|script|class|algorithm|solution|code|function|app)\b/i.test(lower) ||
+    /\b(?:write|code|create)\s+(?:a\s+)?(?:python|java|c\+\+|cpp|c|javascript)\s+(?:program|script|function|code|algorithm)?\b/i.test(lower) ||
+    /\b(?:in\s+(?:python|java|c\+\+|cpp|c|javascript|js|py))\b/i.test(lower)
+  ) {
+    let lang = 'python'
+    let ext = 'py'
+    if (/\b(?:java)\b/i.test(lower)) { lang = 'java'; ext = 'java' }
+    else if (/\b(?:c\+\+|cpp)\b/i.test(lower)) { lang = 'cpp'; ext = 'cpp' }
+    else if (/\b(?:c)\b/i.test(lower) && !/\b(?:c\+\+|cpp)\b/i.test(lower)) { lang = 'c'; ext = 'c' }
+    else if (/\b(?:javascript|js|node)\b/i.test(lower)) { lang = 'javascript'; ext = 'js' }
+    else if (activeFile?.lang) { lang = activeFile.lang; ext = activeFile.lang === 'python' ? 'py' : activeFile.lang === 'javascript' ? 'js' : activeFile.lang }
+
+    let baseName = 'solution'
+    if (lower.includes('binary search') || lower.includes('binarysearch')) baseName = 'binary_search'
+    else if (lower.includes('calculator')) baseName = 'calculator'
+    else if (lower.includes('fibonacci')) baseName = 'fibonacci'
+    else if (lower.includes('prime')) baseName = 'prime_numbers'
+    else if (lower.includes('sort') || lower.includes('quicksort') || lower.includes('mergesort')) baseName = 'sorting'
+    else if (lower.includes('matrix')) baseName = 'matrix'
+    else if (lower.includes('factorial')) baseName = 'factorial'
+    else if (lower.includes('server') || lower.includes('api')) baseName = 'server'
+    else baseName = 'main'
+
+    if (lang === 'java') {
+      baseName = baseName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+    }
+    return { type: 'file_create', filename: `${baseName}.${ext}`, lang }
+  }
+
+  return { type: 'chat' }
 }
 
 function guessFilenameFromCode(code, language) {
@@ -609,39 +703,160 @@ export default function AIAssistant() {
       content: message,
     })
 
-    const fileIntent = detectFileIntent(message)
     const activeFile = getActiveFileInfo()
+    const taskIntent = detectTaskIntent(message, activeFile)
 
     try {
+      // 1. RUN / COMPILE CODE TASK
+      if (taskIntent.type === 'run') {
+        const langToRun = activeFile.lang || 'python'
+        const codeToRun = activeFile.code || ''
+        const execRes = await compilerAPI.execute({
+          language: langToRun,
+          code: codeToRun,
+        })
+        const execData = execRes.data || {}
+        if (window.__ideSetCompilerOutput) {
+          window.__ideSetCompilerOutput(execData)
+        }
+        const isSuccess = execData.success || execData.exitCode === 0
+        const outText = (execData.stdout || '').trim()
+        const errText = (execData.stderr || '').trim()
+        const displayOutput = outText || errText || '(Program completed with no output)'
+        addChatMessage({
+          role: 'assistant',
+          thought: `Executed ${activeFile.name} (${langToRun}) via ${execData.runner || 'compiler'}.`,
+          content: `⚡ **Task Executed: Ran Active Code** (\`${activeFile.name}\`)\n\n• **Status**: ${isSuccess ? '✅ SUCCESS' : '❌ FAILED'}\n• **Exit Code**: \`${execData.exitCode ?? 0}\`\n• **Runtime**: \`${execData.executionTimeMs ?? 0}ms\`\n• **Runner**: \`${execData.runner || 'native'}\`\n\n\`\`\`text\n${displayOutput}\n\`\`\`\n\n_Output has also been piped to the Bottom Panel Output Console._`,
+        })
+        return
+      }
+
+      // 2. TASK TRACKER: CREATE TASK
+      if (taskIntent.type === 'task_create') {
+        const createRes = await taskAPI.createTask({
+          title: taskIntent.title,
+          status: 'todo',
+          priority: taskIntent.priority || 'medium',
+        })
+        window.dispatchEvent(new CustomEvent('tasks-updated'))
+        addChatMessage({
+          role: 'assistant',
+          thought: 'Created development task in project store.',
+          content: `✅ **Task Executed: Added Task to Tracker**\n\n• **Title**: "${taskIntent.title}"\n• **Status**: \`todo\`\n• **Priority**: \`${taskIntent.priority || 'medium'}\`\n\nThe Kanban board and project tracker have been updated.`,
+        })
+        return
+      }
+
+      // 3. TASK TRACKER: COMPLETE TASK
+      if (taskIntent.type === 'task_complete') {
+        await taskAPI.updateTask(taskIntent.taskId, { status: 'done' })
+        window.dispatchEvent(new CustomEvent('tasks-updated'))
+        addChatMessage({
+          role: 'assistant',
+          thought: `Marked ${taskIntent.taskId} as completed.`,
+          content: `✅ **Task Executed: Completed Task**\n\nMarked \`${taskIntent.taskId}\` as **Done** in the Project Task Tracker.`,
+        })
+        return
+      }
+
+      // 4. TASK TRACKER: DELETE TASK
+      if (taskIntent.type === 'task_delete') {
+        await taskAPI.deleteTask(taskIntent.taskId)
+        window.dispatchEvent(new CustomEvent('tasks-updated'))
+        addChatMessage({
+          role: 'assistant',
+          thought: `Deleted ${taskIntent.taskId} from task tracker.`,
+          content: `✅ **Task Executed: Deleted Task**\n\nRemoved \`${taskIntent.taskId}\` from the Project Task Tracker.`,
+        })
+        return
+      }
+
+      // 5. DOCUMENTATION GENERATION TASK
+      if (taskIntent.type === 'doc_generate') {
+        const docRes = await generateDocs({
+          docType: taskIntent.docType || 'readme',
+          code: activeFile.code,
+          saveToDocs: true,
+          model: localModel,
+          temperature: aiTemperature,
+        })
+        const docData = docRes.data || {}
+        window.dispatchEvent(new CustomEvent('docs-updated'))
+        addChatMessage({
+          role: 'assistant',
+          thought: `Synthesized ${taskIntent.docType} documentation with Gemini and persisted to Doc Store.`,
+          content: `✅ **Task Executed: Generated Documentation**\n\n• **Title**: "${docData.title}"\n• **Category**: \`${docData.category}\`\n• **Status**: Saved to Documentation Hub\n\n\`\`\`markdown\n${(docData.content || '').slice(0, 500)}...\n\`\`\``,
+        })
+        return
+      }
+
+      // 6. UNIT TEST GENERATION TASK
+      if (taskIntent.type === 'test_generate') {
+        const testRes = await codingAssist({
+          action: 'generate_tests',
+          code: activeFile.code,
+          language: activeFile.lang,
+          filename: activeFile.name,
+          model: localModel,
+          temperature: aiTemperature,
+        })
+        const testData = testRes.data || {}
+        const testCode = testData.code || ''
+        const testFile = testData.targetFile || (activeFile.lang === 'java' ? 'MainTest.java' : `test_${activeFile.name}`)
+
+        createFile(testFile, testCode, 'ai')
+        addChatMessage({
+          role: 'assistant',
+          thought: `Synthesized unit test suite targeting classes and methods in ${activeFile.name}.`,
+          content: `✅ **Task Executed: Generated Unit Tests**\n\nCreated and opened \`${testFile}\` in the code editor with test coverage for \`${activeFile.name}\`.`,
+          code: testCode,
+          codeLanguage: activeFile.lang,
+          fileAction: 'created',
+          targetFile: testFile,
+        })
+        return
+      }
+
+      // 7. FILE CREATION OR MODIFICATION VIA CHAT
       const res = await sendChatMessage(message, chatMessages, localModel, aiTemperature, {
         activeCode: activeFile.code,
         activeFile: activeFile.name,
         activeLang: activeFile.lang,
       })
       const data = res.data || {}
-      const responseContent = data.content || data.message || 'I have analyzed your request and updated the workspace.'
+      const responseContent = data.content || data.message || 'I have analyzed your request and executed the changes.'
       const responseCode = data.code || null
       const responseLang = data.codeLanguage || activeFile.lang
 
-      // Auto-apply file operations if intent was detected
       let fileAction = null
       let targetFile = null
+      let taskExecutedNote = ''
 
-      if (fileIntent && responseCode) {
-        if (fileIntent.action === 'create') {
-          createFile(fileIntent.filename, responseCode, 'ai')
+      if (responseCode) {
+        if (taskIntent.type === 'file_create') {
+          targetFile = taskIntent.filename || guessFilenameFromCode(responseCode, responseLang) || 'main.py'
+          createFile(targetFile, responseCode, 'ai')
           fileAction = 'created'
-          targetFile = fileIntent.filename
-        } else if (fileIntent.action === 'modify') {
-          updateFile(fileIntent.filename, responseCode, 'ai')
+          taskExecutedNote = `\n\n⚡ **Task Executed:** Created and opened \`${targetFile}\` in the code editor.`
+        } else if (taskIntent.type === 'file_modify') {
+          targetFile = taskIntent.filename || activeFile.name
+          updateFile(targetFile, responseCode, 'ai')
           fileAction = 'modified'
-          targetFile = fileIntent.filename
+          taskExecutedNote = `\n\n⚡ **Task Executed:** Automatically updated \`${targetFile}\` in the code editor.`
+        } else {
+          // If code was generated and active file exists, automatically check if user intended code update
+          if (/\b(?:fix|refactor|error|bug|clean|add|update)\b/i.test(message) && activeFile.name && activeFile.name !== 'welcome') {
+            targetFile = activeFile.name
+            updateFile(targetFile, responseCode, 'ai')
+            fileAction = 'modified'
+            taskExecutedNote = `\n\n⚡ **Task Executed:** Applied code changes directly to \`${targetFile}\`.`
+          }
         }
       }
 
       addChatMessage({
         role: 'assistant',
-        content: responseContent,
+        content: responseContent + taskExecutedNote,
         thought: data.thought,
         code: responseCode,
         codeLanguage: responseLang,
