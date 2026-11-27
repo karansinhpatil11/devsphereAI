@@ -4,7 +4,7 @@ A full-stack AI-powered developer IDE interface with GitHub PR diff viewer and A
 
 ![Preview](https://via.placeholder.com/800x400/1a1b26/7c6af7?text=AI+Developer+Assistant)
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 ai-developer-assistant/
@@ -44,7 +44,7 @@ ai-developer-assistant/
     └── package.json
 ```
 
-## 🤖 AI Provider: Google Gemini (Free Tier)
+##  AI Provider: Google Gemini (Free Tier)
 
 This project is configured to use **Google Gemini Free Tier models** via the official `@google/genai` SDK:
 - **`gemini-2.5-flash`** (Recommended - Fast, intelligent code refactoring, 100% free on Google AI Studio)
