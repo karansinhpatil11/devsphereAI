@@ -1,4 +1,4 @@
-# 🤖 AI Developer Assistant
+#  AI Developer Assistant
 
 A full-stack AI-powered developer IDE interface with GitHub PR diff viewer and AI chat assistant.
 
