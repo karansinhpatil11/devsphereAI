@@ -432,7 +432,7 @@ public class AppService {
     <div
       ref={containerRef}
       onClick={focusInput}
-      className="flex flex-col h-full bg-[#0a0f1d] font-mono text-xs overflow-hidden select-text border-t border-ide-border"
+      className="flex flex-col h-full bg-ide-bg font-mono text-xs overflow-hidden select-text border-t border-ide-border"
     >
       {/* Terminal Header Toolbar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-ide-sidebar/90 border-b border-ide-border text-ide-text select-none shrink-0">

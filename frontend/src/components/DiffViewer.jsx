@@ -337,7 +337,7 @@ export default function DiffViewer() {
       <div className="flex-1 overflow-auto">
         {/* MODE 1: Full Selected Repo File Code View */}
         {(viewMode === 'fileCode' || viewMode === 'originalCode') && (
-          <div className="flex flex-col h-full bg-[#0b1021]">
+          <div className="flex flex-col h-full bg-ide-bg">
             {/* File Info Bar */}
             <div className="flex items-center justify-between px-4 py-2 bg-ide-sidebar/90 border-b border-ide-border shrink-0 text-xs font-mono">
               <div className="flex items-center gap-2">
@@ -367,7 +367,7 @@ export default function DiffViewer() {
 
             {/* Code Body with Gutter */}
             <div className="flex-1 flex overflow-auto font-mono text-xs">
-              <div className="w-12 py-3 bg-[#080d1c] select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 overflow-hidden shrink-0">
+              <div className="w-12 py-3 bg-ide-sidebar select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 overflow-hidden shrink-0">
                 {codeLines.map((_, idx) => (
                   <div key={idx} className="leading-6 h-6">
                     {idx + 1}

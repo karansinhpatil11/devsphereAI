@@ -13,13 +13,19 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
+    background-color: #050a08;
   }
 
   body {
-    background-color: #1a1b26;
-    color: #a9b1d6;
+    background-color: #050a08;
+    color: #709985;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: rgba(0, 255, 136, 0.3);
+    color: #ffffff;
   }
 
   ::-webkit-scrollbar {
@@ -28,58 +34,60 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #1a1b26;
+    background: #050a08;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2a2b3d;
+    background: #132b1f;
     border-radius: 3px;
+    border: 1px solid rgba(0, 255, 136, 0.15);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3b55;
+    background: #1c402e;
+    border-color: rgba(0, 255, 136, 0.4);
   }
 }
 
 @layer components {
   .tab-active {
-    @apply bg-ide-panel border-b-2 border-ide-accent text-ide-text-bright;
+    @apply bg-ide-panel border-b-2 border-ide-accent text-ide-text-bright shadow-[0_2px_12px_-2px_rgba(0,255,136,0.35)];
   }
 
   .tab-inactive {
-    @apply text-ide-text hover:bg-ide-panel/50 hover:text-ide-text-bright;
+    @apply text-ide-text hover:bg-ide-panel/60 hover:text-ide-text-bright;
   }
 
   .sidebar-item {
-    @apply flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm text-ide-text hover:bg-ide-border hover:text-ide-text-bright transition-colors;
+    @apply flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm text-ide-text hover:bg-ide-panel hover:text-ide-text-bright transition-colors;
   }
 
   .sidebar-item-active {
-    @apply bg-ide-accent/20 text-ide-accent;
+    @apply bg-gradient-to-r from-ide-accent/25 via-ide-accent/10 to-transparent text-ide-accent border-l-2 border-ide-accent font-medium shadow-[inset_0_0_10px_rgba(0,255,136,0.15)];
   }
 
   .btn-primary {
-    @apply bg-ide-accent hover:bg-ide-accent-hover text-white px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer;
+    @apply bg-ide-accent hover:bg-ide-accent-hover text-black font-semibold px-4 py-2 rounded-md text-sm transition-all shadow-[0_0_15px_rgba(0,255,136,0.4)] hover:shadow-[0_0_22px_rgba(0,255,136,0.6)] cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-ide-border hover:bg-ide-border/80 text-ide-text-bright px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer;
+    @apply bg-ide-panel hover:bg-ide-border text-ide-text-bright border border-ide-border px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer;
   }
 
   .diff-line-add {
-    @apply bg-diff-add text-ide-green;
+    @apply bg-diff-add text-ide-green border-l-2 border-ide-green;
   }
 
   .diff-line-remove {
-    @apply bg-diff-remove text-ide-red;
+    @apply bg-diff-remove text-ide-red border-l-2 border-ide-red;
   }
 
   .chat-message-user {
-    @apply bg-ide-accent/20 border border-ide-accent/30 rounded-lg p-3 text-sm text-ide-text-bright;
+    @apply bg-ide-accent/15 border border-ide-accent/35 rounded-xl p-3 text-sm text-ide-text-bright shadow-[0_2px_10px_rgba(0,255,136,0.1)];
   }
 
   .chat-message-ai {
-    @apply bg-ide-border/50 rounded-lg p-3 text-sm text-ide-text-bright;
+    @apply bg-ide-panel/95 border border-ide-border rounded-xl p-3 text-sm text-ide-text-bright shadow-[0_4px_16px_rgba(0,0,0,0.5)];
   }
 
   .code-block {
@@ -103,5 +111,5 @@
 
 @keyframes pulseDot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.3; }
 }

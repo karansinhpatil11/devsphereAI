@@ -29,9 +29,9 @@ function BottomPanel({ visible, onToggle, onClose, activeBottomTab, setActiveBot
   const outputLines = compilerOutput || null
 
   return (
-    <div className="flex flex-col bg-[#070b16] border-t border-ide-border shrink-0" style={{ height: '220px' }}>
+    <div className="flex flex-col bg-ide-panel border-t border-ide-border shrink-0" style={{ height: '220px' }}>
       {/* Panel tab bar */}
-      <div className="flex items-center justify-between px-2 h-8 bg-[#090d1c] border-b border-ide-border shrink-0 select-none">
+      <div className="flex items-center justify-between px-2 h-8 bg-ide-sidebar border-b border-ide-border shrink-0 select-none">
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => setActiveBottomTab('terminal')}
@@ -160,7 +160,7 @@ function BottomPanel({ visible, onToggle, onClose, activeBottomTab, setActiveBot
 }
 
 export default function IDELayout() {
-  const { setActiveEditorTab, openTabs, activeEditorTab, activeRepoName } = useStore()
+  const { setActiveEditorTab, openTabs, activeEditorTab, activeRepoName, isSidebarOpen } = useStore()
   const [fullscreen, setFullscreen] = React.useState(false)
   const [showBottomPanel, setShowBottomPanel] = React.useState(false)
   const [activeBottomTab, setActiveBottomTab] = React.useState('terminal')
@@ -203,7 +203,7 @@ export default function IDELayout() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-ide-bg">
+    <div className="flex flex-col h-screen overflow-hidden bg-ide-bg border border-ide-border/60">
       {/* Top Title Bar */}
       <div className="flex items-center justify-between px-4 h-9 bg-ide-sidebar border-b border-ide-border shrink-0 select-none">
         <div className="flex items-center gap-2">
@@ -228,35 +228,21 @@ export default function IDELayout() {
         </div>
 
         {/* URL / Workspace bar */}
-        <div className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 flex-1 mx-6 max-w-sm">
-          <Globe size={11} className="text-ide-text/50 shrink-0" />
-          <span className="text-xs text-ide-text/70 truncate">
+        <div className="flex items-center gap-2 bg-ide-bg border border-ide-border/80 focus-within:border-ide-accent/60 rounded-md px-3 py-1 flex-1 mx-6 max-w-sm shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
+          <Globe size={11} className="text-ide-accent/70 shrink-0" />
+          <span className="text-xs text-ide-text truncate">
             {`devsphere://${activeRepoName || 'workspace'}/${activeEditorTab || 'welcome'}`}
           </span>
           <button
             onClick={handleRefresh}
             title="Reload IDE"
-            className="ml-auto text-ide-text/50 hover:text-ide-text-bright cursor-pointer"
+            className="ml-auto text-ide-text/50 hover:text-ide-accent cursor-pointer transition-colors"
           >
             <RefreshCw size={11} className="shrink-0" />
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-ide-text/50">
-          <button
-            onClick={() => {
-              setShowBottomPanel(true)
-              setActiveBottomTab('terminal')
-            }}
-            title="Toggle Terminal (Ctrl + `)"
-            className={`text-xs hover:text-ide-text-bright cursor-pointer flex items-center gap-1 ${
-              showBottomPanel && activeBottomTab === 'terminal' ? 'text-ide-accent font-semibold' : ''
-            }`}
-          >
-            <TerminalIcon size={11} />
-            Terminal
-          </button>
-        </div>
+        <div className="flex items-center gap-2" />
       </div>
 
       {/* Main Layout */}
@@ -264,8 +250,16 @@ export default function IDELayout() {
         {/* Activity Bar */}
         <ActivityBar />
 
-        {/* Sidebar File Tree */}
-        <Sidebar />
+        {/* Sidebar with Slide Menu Transition */}
+        <div
+          className={`transition-all duration-300 ease-in-out flex shrink-0 overflow-hidden ${
+            isSidebarOpen ? 'w-64 border-r border-ide-border' : 'w-0 border-none opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="w-64 h-full flex flex-col overflow-hidden">
+            <Sidebar />
+          </div>
+        </div>
 
         {/* Editor + Tabs + Bottom Panel */}
         <div className="flex flex-col flex-1 overflow-hidden">

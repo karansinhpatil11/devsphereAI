@@ -75,6 +75,40 @@ function CodeBlock({ code, language }) {
   )
 }
 
+function FormattedText({ content }) {
+  if (!content) return null
+  const lines = content.split('\n')
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((line, lIdx) => {
+        if (!line.trim()) return <div key={lIdx} className="h-1" />
+        const parts = line.split(/(\*\*.*?\*\*|`.*?`)/g)
+        return (
+          <p key={lIdx} className="leading-relaxed">
+            {parts.map((part, pIdx) => {
+              if (part.startsWith('**') && part.endsWith('**')) {
+                return (
+                  <strong key={pIdx} className="font-semibold text-ide-text-bright">
+                    {part.slice(2, -2)}
+                  </strong>
+                )
+              }
+              if (part.startsWith('`') && part.endsWith('`')) {
+                return (
+                  <code key={pIdx} className="px-1 py-0.5 rounded bg-ide-bg border border-ide-border text-ide-accent font-mono text-[11px]">
+                    {part.slice(1, -1)}
+                  </code>
+                )
+              }
+              return part
+            })}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Message Component ─────────────────────────────────
 function ChatMessage({ message, onApplyCode }) {
   const isUser = message.role === 'user'
@@ -83,18 +117,20 @@ function ChatMessage({ message, onApplyCode }) {
     <div className={`flex gap-2.5 slide-in ${isUser ? 'flex-row-reverse' : ''}`}>
       <div
         className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs mt-0.5 ${
-          isUser ? 'bg-ide-accent/30' : 'bg-ide-purple/30'
+          isUser
+            ? 'bg-ide-accent/20 border border-ide-accent/40 text-ide-accent'
+            : 'bg-ide-cyan/20 border border-ide-cyan/40 text-ide-cyan shadow-[0_0_8px_rgba(0,240,181,0.2)]'
         }`}
       >
-        {isUser ? <User size={13} className="text-ide-accent" /> : <Bot size={13} className="text-ide-purple" />}
+        {isUser ? <User size={13} className="text-ide-accent" /> : <Bot size={13} className="text-ide-cyan" />}
       </div>
 
       <div className={`flex-1 max-w-[88%] flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
         <div
           className={`rounded-xl px-3 py-2.5 text-xs leading-relaxed ${
             isUser
-              ? 'bg-ide-accent/20 border border-ide-accent/30 text-ide-text-bright rounded-tr-sm'
-              : 'bg-ide-border/60 text-ide-text-bright rounded-tl-sm'
+              ? 'bg-ide-accent/15 border border-ide-accent/35 text-ide-text-bright rounded-tr-sm shadow-[0_2px_10px_rgba(0,255,136,0.1)]'
+              : 'bg-ide-panel/95 border border-ide-border rounded-tl-sm text-ide-text-bright shadow-[0_4px_16px_rgba(0,0,0,0.5)]'
           }`}
         >
           {message.mcpToolUsed && (
@@ -104,8 +140,8 @@ function ChatMessage({ message, onApplyCode }) {
             </div>
           )}
           {message.thought && (
-            <div className="mb-2 p-2 bg-ide-bg/80 border-l-2 border-ide-purple rounded text-[11px] text-ide-text/70 italic leading-relaxed">
-              <span className="font-semibold text-[10px] text-ide-purple not-italic uppercase tracking-wider block mb-0.5">
+            <div className="mb-2 p-2 bg-ide-bg/80 border-l-2 border-ide-cyan rounded text-[11px] text-ide-text/70 italic leading-relaxed">
+              <span className="font-semibold text-[10px] text-ide-cyan not-italic uppercase tracking-wider block mb-0.5">
                 🧠 Reasoning
               </span>
               {message.thought}
@@ -113,12 +149,12 @@ function ChatMessage({ message, onApplyCode }) {
           )}
           {message.fileAction && (
             <div className={`flex items-center gap-1 mb-1.5 px-2 py-0.5 rounded text-[9px] w-fit font-mono ${
-              message.fileAction === 'created' ? 'bg-ide-green/15 border border-ide-green/30 text-ide-green' : 'bg-ide-purple/15 border border-ide-purple/30 text-ide-purple'
+              message.fileAction === 'created' ? 'bg-ide-green/15 border border-ide-green/30 text-ide-green' : 'bg-ide-cyan/15 border border-ide-cyan/30 text-ide-cyan'
             }`}>
               <span>{message.fileAction === 'created' ? '📄 Created' : '✏️ Modified'}: {message.targetFile}</span>
             </div>
           )}
-          <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          <FormattedText content={message.content} />
           {message.code && <CodeBlock code={message.code} language={message.codeLanguage} />}
         </div>
 
@@ -1359,8 +1395,8 @@ export default function AIAssistant() {
       <div className="flex flex-col border-b border-ide-border shrink-0 bg-ide-bg/40">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-ide-accent to-ide-purple flex items-center justify-center">
-              <Bot size={13} className="text-white" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-ide-accent to-ide-cyan flex items-center justify-center shadow-[0_0_8px_rgba(0,255,136,0.3)]">
+              <Bot size={13} className="text-black font-bold" />
             </div>
             <span className="text-xs font-bold text-ide-text-bright">Gemini Agent</span>
           </div>
@@ -1390,8 +1426,8 @@ export default function AIAssistant() {
         <div className="flex items-center px-2 pb-1 gap-1 text-[11px] font-medium overflow-x-auto select-none border-t border-ide-border/40 pt-1">
           <button
             onClick={() => setActiveMode('chat')}
-            className={`px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
-              activeMode === 'chat' ? 'bg-ide-accent/20 text-ide-accent font-semibold' : 'text-ide-text/60 hover:text-ide-text'
+            className={`px-2 py-1 rounded-md transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              activeMode === 'chat' ? 'bg-ide-accent text-black font-bold shadow-[0_0_10px_rgba(0,255,136,0.35)]' : 'text-ide-text/70 hover:text-ide-text-bright hover:bg-ide-panel'
             }`}
           >
             <MessageSquare size={11} />
@@ -1399,8 +1435,8 @@ export default function AIAssistant() {
           </button>
           <button
             onClick={() => setActiveMode('coding')}
-            className={`px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
-              activeMode === 'coding' ? 'bg-ide-accent/20 text-ide-accent font-semibold' : 'text-ide-text/60 hover:text-ide-text'
+            className={`px-2 py-1 rounded-md transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              activeMode === 'coding' ? 'bg-ide-accent text-black font-bold shadow-[0_0_10px_rgba(0,255,136,0.35)]' : 'text-ide-text/70 hover:text-ide-text-bright hover:bg-ide-panel'
             }`}
           >
             <Zap size={11} />
@@ -1411,8 +1447,8 @@ export default function AIAssistant() {
               setActiveMode('bugs')
               if (!bugScanResult) handleRunBugScan()
             }}
-            className={`px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
-              activeMode === 'bugs' ? 'bg-ide-red/20 text-ide-red font-semibold' : 'text-ide-text/60 hover:text-ide-text'
+            className={`px-2 py-1 rounded-md transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              activeMode === 'bugs' ? 'bg-ide-red text-white font-bold shadow-[0_0_10px_rgba(255,51,102,0.35)]' : 'text-ide-text/70 hover:text-ide-text-bright hover:bg-ide-panel'
             }`}
           >
             <ShieldAlert size={11} />
@@ -1420,8 +1456,8 @@ export default function AIAssistant() {
           </button>
           <button
             onClick={() => setActiveMode('docs')}
-            className={`px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
-              activeMode === 'docs' ? 'bg-ide-purple/20 text-ide-purple font-semibold' : 'text-ide-text/60 hover:text-ide-text'
+            className={`px-2 py-1 rounded-md transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              activeMode === 'docs' ? 'bg-ide-cyan text-black font-bold shadow-[0_0_10px_rgba(0,240,181,0.35)]' : 'text-ide-text/70 hover:text-ide-text-bright hover:bg-ide-panel'
             }`}
           >
             <BookOpen size={11} />
@@ -1432,8 +1468,8 @@ export default function AIAssistant() {
               setActiveMode('github')
               if (!repoInsights) fetchInsights()
             }}
-            className={`px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
-              activeMode === 'github' ? 'bg-emerald-500/20 text-emerald-400 font-semibold' : 'text-ide-text/60 hover:text-ide-text'
+            className={`px-2 py-1 rounded-md transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              activeMode === 'github' ? 'bg-ide-cyan text-black font-bold shadow-[0_0_10px_rgba(0,240,181,0.35)]' : 'text-ide-text/70 hover:text-ide-text-bright hover:bg-ide-panel'
             }`}
           >
             <GitPullRequest size={11} />
@@ -2199,8 +2235,8 @@ export default function AIAssistant() {
             disabled={!chatInput.trim() || isAiTyping || isCodingLoading}
             className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
               chatInput.trim() && !isAiTyping && !isCodingLoading
-                ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
-                : 'bg-ide-border text-ide-text/40 cursor-not-allowed'
+                ? 'bg-ide-accent hover:bg-ide-accent-hover text-black shadow-[0_0_10px_rgba(0,255,136,0.4)]'
+                : 'bg-ide-panel border border-ide-border text-ide-text/40 cursor-not-allowed'
             }`}
           >
             <Send size={13} />

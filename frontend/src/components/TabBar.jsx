@@ -86,7 +86,7 @@ export default function TabBar() {
             >
               {/* Active tab top border indicator */}
               {isActive && (
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-ide-accent" />
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-ide-accent shadow-[0_0_8px_rgba(0,255,136,0.6)]" />
               )}
               <TabIcon tab={tab} />
               <span>{tab.name}</span>

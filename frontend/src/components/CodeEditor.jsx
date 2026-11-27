@@ -15,6 +15,7 @@ import {
 import useStore from '../store/useStore'
 import { githubAPI, compilerAPI, smartBugScan } from '../services/api'
 import { fileCache, getOrCreateFile, detectLanguage, INITIAL_FILES } from '../store/fileStorage'
+import { highlightMatrixCode } from '../utils/matrixHighlighter'
 
 export const REPO_FILES = INITIAL_FILES
 export { fileCache }
@@ -30,6 +31,14 @@ export default function CodeEditor({ tabId }) {
   const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const textareaRef = useRef(null)
+  const highlightRef = useRef(null)
+
+  const handleScroll = (e) => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.target.scrollTop
+      highlightRef.current.scrollLeft = e.target.scrollLeft
+    }
+  }
 
   // Resolve matching file key dynamically
   const resolveFileKey = (id) => {
@@ -297,11 +306,11 @@ export default function CodeEditor({ tabId }) {
             className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold bg-ide-accent/15 text-ide-accent border border-ide-accent/30 outline-none cursor-pointer hover:border-ide-accent transition-colors"
             title="Language Mode (C, C++, Java, Python, JavaScript)"
           >
-            <option value="c" className="bg-[#0b1021] text-ide-text">C</option>
-            <option value="cpp" className="bg-[#0b1021] text-ide-text">C++</option>
-            <option value="java" className="bg-[#0b1021] text-ide-text">Java</option>
-            <option value="python" className="bg-[#0b1021] text-ide-text">Python</option>
-            <option value="javascript" className="bg-[#0b1021] text-ide-text">JavaScript</option>
+            <option value="c" className="bg-ide-bg text-ide-text">C</option>
+            <option value="cpp" className="bg-ide-bg text-ide-text">C++</option>
+            <option value="java" className="bg-ide-bg text-ide-text">Java</option>
+            <option value="python" className="bg-ide-bg text-ide-text">Python</option>
+            <option value="javascript" className="bg-ide-bg text-ide-text">JavaScript</option>
           </select>
           <span className="text-[10px] text-ide-text/40">({lines.length} lines)</span>
           {saved && (
@@ -310,64 +319,13 @@ export default function CodeEditor({ tabId }) {
             </span>
           )}
           {lastFileAction?.by === 'ai' && (lastFileAction.filename === currentFile.name) && (
-            <span className="text-[10px] text-ide-purple bg-ide-purple/15 border border-ide-purple/30 px-1.5 py-0.5 rounded flex items-center gap-1 font-semibold animate-pulse">
+            <span className="text-[10px] text-ide-accent bg-ide-accent/15 border border-ide-accent/30 px-1.5 py-0.5 rounded flex items-center gap-1 font-semibold animate-pulse">
               <Sparkles size={10} /> AI Modified
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Health Score Badge if scanned */}
-          {scanResult && (
-            <div className="flex items-center gap-1.5 animate-fadeIn">
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-                  scanResult.healthScore >= 80
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                }`}
-                title="Code Quality & Security Score"
-              >
-                Health: {scanResult.healthScore}/100
-              </span>
-              {scanResult.fixedCode && !scanResult.applied && (
-                <button
-                  onClick={handleApplyScanFix}
-                  title="Apply AI fixed code to editor"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] transition-colors cursor-pointer shadow-sm animate-pulse"
-                >
-                  <Sparkles size={11} />
-                  <span>⚡ Apply Fix</span>
-                </button>
-              )}
-              {scanResult.applied && (
-                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 size={11} /> Fixed
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Scan Code Button */}
-          <button
-            onClick={handleScanCode}
-            disabled={isScanning}
-            title="Scan code for bugs, errors, and performance"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-ide-panel hover:bg-ide-border border border-ide-border text-ide-text-bright font-medium transition-colors cursor-pointer text-[11px] shadow-sm disabled:opacity-50"
-          >
-            {isScanning ? (
-              <>
-                <Sparkles size={11} className="text-amber-400 animate-spin" />
-                <span>Scanning...</span>
-              </>
-            ) : (
-              <>
-                <ShieldAlert size={11} className="text-amber-400" />
-                <span>Scan Code</span>
-              </>
-            )}
-          </button>
-
           {/* Run / Compile button */}
           <button
             onClick={handleRunCode}
@@ -400,8 +358,8 @@ export default function CodeEditor({ tabId }) {
         </div>
       </div>
 
-      {/* Code Editor body with synchronized line numbers and textarea */}
-      <div className="flex-1 flex flex-col overflow-hidden relative bg-[#0b1021]">
+      {/* Code Editor body with synchronized line numbers and Matrix syntax highlighting */}
+      <div className="flex-1 flex flex-col overflow-hidden relative bg-ide-bg">
         <div className="flex-1 flex overflow-hidden relative">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center text-ide-text/50">
@@ -410,7 +368,7 @@ export default function CodeEditor({ tabId }) {
           ) : (
             <>
               {/* Line numbers column */}
-              <div className="w-12 py-3 bg-[#080d1c] select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
+              <div className="w-12 py-3 bg-ide-sidebar select-none border-r border-ide-border/50 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
                 {lines.map((_, idx) => (
                   <div key={idx} className="leading-6 h-6">
                     {idx + 1}
@@ -418,15 +376,27 @@ export default function CodeEditor({ tabId }) {
                 ))}
               </div>
 
-              {/* Editable textarea */}
-              <textarea
-                ref={textareaRef}
-                value={code}
-                onChange={handleCodeChange}
-                onKeyDown={handleKeyDown}
-                spellCheck={false}
-                className="flex-1 p-3 bg-transparent text-ide-text-bright font-mono text-xs leading-6 resize-none outline-none overflow-auto whitespace-pre tab-4 border-none selection:bg-ide-accent/30 caret-ide-accent"
-              />
+              {/* Live Syntax-Highlighted Code Editor */}
+              <div className="flex-1 relative overflow-hidden h-full">
+                {/* Syntax highlighted pre layer in Cyberpunk Matrix theme */}
+                <pre
+                  ref={highlightRef}
+                  aria-hidden="true"
+                  className="absolute inset-0 p-3 font-mono text-xs leading-6 overflow-hidden whitespace-pre pointer-events-none select-none m-0 border-none bg-transparent"
+                  dangerouslySetInnerHTML={{ __html: highlightMatrixCode(code) }}
+                />
+
+                {/* Editable textarea on top with synchronized scroll & caret */}
+                <textarea
+                  ref={textareaRef}
+                  value={code}
+                  onChange={handleCodeChange}
+                  onKeyDown={handleKeyDown}
+                  onScroll={handleScroll}
+                  spellCheck={false}
+                  className="absolute inset-0 p-3 font-mono text-xs leading-6 resize-none outline-none overflow-auto whitespace-pre border-none bg-transparent text-transparent caret-[#00ff88] selection:bg-[#00ff88]/30 z-10"
+                />
+              </div>
             </>
           )}
         </div>

@@ -11,6 +11,7 @@ import {
   Check,
   RefreshCw,
   LogOut,
+  Palette,
 } from 'lucide-react'
 
 export default function SettingsPanel() {
@@ -132,7 +133,37 @@ export default function SettingsPanel() {
           </div>
         </div>
 
-        {/* 2. System & Connectivity Status */}
+        {/* 2. UI Theme & Visual Styling */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-ide-text-bright font-semibold">
+            <Palette size={13} className="text-ide-accent" />
+            <span>UI Theme & Appearance</span>
+          </div>
+          <div className="p-2.5 bg-ide-panel rounded-xl border border-ide-border space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-ide-text/70 text-[11px]">Active Theme</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-ide-accent/15 text-ide-accent border border-ide-accent/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-ide-accent animate-pulse"></span>
+                Cyberpunk Matrix
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-ide-text/60">
+              <span>Palette Accent</span>
+              <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#0a0e14] border border-ide-border" title="Obsidian #0a0e14"></span>
+                <span className="w-3.5 h-3.5 rounded-full bg-[#00ff88]" title="Neon Emerald #00ff88"></span>
+                <span className="w-3.5 h-3.5 rounded-full bg-[#39bae6]" title="Cyber Cyan #39bae6"></span>
+                <span className="w-3.5 h-3.5 rounded-full bg-[#ffb454]" title="Amber #ffb454"></span>
+                <span className="w-3.5 h-3.5 rounded-full bg-[#ff3366]" title="Crimson #ff3366"></span>
+              </div>
+            </div>
+            <p className="text-[10px] text-ide-text/50 italic pt-1 border-t border-ide-border/50">
+              High-contrast terminal aesthetic with glowing matrix emerald indicators and obsidian slate panels.
+            </p>
+          </div>
+        </div>
+
+        {/* 3. System & Connectivity Status */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-ide-text-bright font-semibold">

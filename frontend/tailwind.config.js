@@ -7,29 +7,36 @@ export default {
   theme: {
     extend: {
       colors: {
-        'ide-bg': '#1a1b26',
-        'ide-sidebar': '#16171f',
-        'ide-panel': '#1e1f2e',
-        'ide-border': '#2a2b3d',
-        'ide-accent': '#7c6af7',
-        'ide-accent-hover': '#9580ff',
-        'ide-text': '#a9b1d6',
-        'ide-text-bright': '#c0caf5',
-        'ide-green': '#9ece6a',
-        'ide-red': '#f7768e',
-        'ide-blue': '#7aa2f7',
-        'ide-yellow': '#e0af68',
-        'ide-purple': '#bb9af7',
-        'ide-cyan': '#7dcfff',
-        'diff-add': '#1a2f1a',
-        'diff-remove': '#2f1a1a',
-        'diff-add-highlight': '#2d4a2d',
-        'diff-remove-highlight': '#4a2d2d',
+        // Exact 5 swatches from Cyberpunk Matrix theme mockup:
+        'ide-bg': '#050a08',           // Background swatch: Dark forest pitch obsidian
+        'ide-sidebar': '#07100b',      // Deeper rail & tree surface
+        'ide-panel': '#09150f',        // Panel swatch: Dark cyber slate matrix surface
+        'ide-border': '#132b1f',       // Subtle cyber cyan-green border
+        'ide-border-glow': '#00ff88',  // Glowing border highlight
+        'ide-accent': '#00ff88',       // Accent swatch: Vibrant electric matrix neon emerald
+        'ide-accent-hover': '#10e885', // Radiant hover emerald
+        'ide-text': '#709985',         // Text swatch: Muted cyber sage terminal text
+        'ide-text-bright': '#dcf7ec',  // Crisp ice green-white
+        'ide-green': '#00ff88',        // Terminal matrix neon green
+        'ide-red': '#ff3366',          // Cyberpunk neon crimson
+        'ide-blue': '#00f0b5',         // Status swatch: Glowing cyber aquamarine
+        'ide-yellow': '#ffb454',       // Neon amber
+        'ide-purple': '#00f0b5',       // Cyan status highlight (replaced purple)
+        'ide-cyan': '#00f0b5',         // Status swatch: Electric aquamarine cyan
+        'diff-add': '#092115',         // Deep matrix green diff
+        'diff-remove': '#260a12',      // Deep matrix crimson diff
+        'diff-add-highlight': '#103d27',
+        'diff-remove-highlight': '#471220',
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      boxShadow: {
+        'matrix-glow': '0 0 15px -2px rgba(0, 255, 136, 0.35)',
+        'matrix-card': '0 4px 20px -2px rgba(0, 255, 136, 0.08)',
+        'cyan-glow': '0 0 15px -2px rgba(0, 240, 181, 0.35)',
+      }
     },
   },
   plugins: [],

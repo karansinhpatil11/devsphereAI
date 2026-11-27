@@ -294,7 +294,7 @@ function RepoDetailsPanel({ repo, onClose }) {
                   className="px-3 py-2 hover:bg-ide-border/40 cursor-pointer transition-colors"
                 >
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <GitBranch size={11} className="text-ide-purple shrink-0" />
+                    <GitBranch size={11} className="text-ide-accent shrink-0" />
                     <span className="text-[10px] text-ide-blue font-mono">#{pr.number}</span>
                     <span className={`text-[9px] px-1.5 py-px rounded-full font-medium ${
                       pr.state === 'open' ? 'bg-ide-green/20 text-ide-green' : 'bg-ide-red/20 text-ide-red'
@@ -489,7 +489,7 @@ export default function Sidebar() {
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <GitBranch size={12} className="text-ide-purple shrink-0" />
+                          <GitBranch size={12} className="text-ide-accent shrink-0" />
                           <span className="truncate text-xs">{r.name}</span>
                         </div>
                         {r.language && <span className="text-[9px] text-ide-text/40 shrink-0">{r.language}</span>}
@@ -667,8 +667,8 @@ export default function Sidebar() {
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-xs transition-colors select-none
                     ${selectedPRRepo === repo.name
-                      ? 'bg-ide-accent/15 text-ide-accent font-medium'
-                      : 'text-ide-text hover:bg-ide-border/60 hover:text-ide-text-bright'
+                      ? 'bg-gradient-to-r from-ide-accent/25 via-ide-accent/10 to-transparent text-ide-accent border-l-2 border-ide-accent font-semibold shadow-[inset_0_0_8px_rgba(0,255,136,0.1)]'
+                      : 'text-ide-text hover:bg-ide-panel hover:text-ide-text-bright'
                     }`}
                 >
                   {selectedPRRepo === repo.name ? (
@@ -676,7 +676,7 @@ export default function Sidebar() {
                   ) : (
                     <ChevronRight size={11} className="shrink-0 text-ide-text/50" />
                   )}
-                  <GitBranch size={12} className="shrink-0 text-ide-purple" />
+                  <GitBranch size={12} className="shrink-0 text-ide-accent" />
                   <span className="truncate flex-1">{repo.name}</span>
                   {repo.language && (
                     <span className="text-[9px] text-ide-text/40 shrink-0">{repo.language}</span>

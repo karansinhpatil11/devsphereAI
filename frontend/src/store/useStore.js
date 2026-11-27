@@ -5,6 +5,7 @@ const useStore = create((set, get) => ({
   // ── UI State ──────────────────────────────────────────
   activeTab: 'pr',
   sidebarSection: 'repositories',
+  isSidebarOpen: true,
 
   // ── Repositories & Files ─────────────────────────────
   repositories: [],
@@ -51,7 +52,16 @@ How can I help you build today?`,
   setAiTemperature: (temperature) => set({ aiTemperature: temperature }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),
-  setSidebarSection: (section) => set({ sidebarSection: section }),
+  setSidebarSection: (section) => {
+    const current = get().sidebarSection
+    const isOpen = get().isSidebarOpen
+    if (current === section && isOpen) {
+      set({ isSidebarOpen: false })
+    } else {
+      set({ sidebarSection: section, isSidebarOpen: true })
+    }
+  },
+  toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
   selectedDiffFile: 'AppController.java',
   setSelectedDiffFile: (name) => set({ selectedDiffFile: name }),
   setSelectedFile: (file) => set({

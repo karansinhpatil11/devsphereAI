@@ -460,7 +460,7 @@ Explain the root cause and provide the corrected code.`
   const lines = (code || '').split('\n')
 
   return (
-    <div className="flex flex-col h-full bg-[#0b1021] text-xs font-mono overflow-hidden select-text">
+    <div className="flex flex-col h-full bg-ide-bg text-xs font-mono overflow-hidden select-text">
       {/* ── Toolbar Header ── */}
       <div className="flex flex-wrap items-center justify-between px-3 py-2 bg-ide-sidebar border-b border-ide-border gap-2 shrink-0">
         {/* Left: Language Selector & Presets */}
@@ -572,9 +572,9 @@ Explain the root cause and provide the corrected code.`
       {/* ── Main Workspace: Split into Code Editor & Execution Console ── */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Left / Top: Code Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden border-b md:border-b-0 md:border-r border-ide-border bg-[#0b1021]">
+        <div className="flex-1 flex flex-col overflow-hidden border-b md:border-b-0 md:border-r border-ide-border bg-ide-bg">
           {/* Subheader info bar */}
-          <div className="flex items-center justify-between px-3 py-1 bg-[#090d1c] border-b border-ide-border/50 text-[11px] text-ide-text/60">
+          <div className="flex items-center justify-between px-3 py-1 bg-ide-sidebar border-b border-ide-border/50 text-[11px] text-ide-text/60">
             <div className="flex items-center gap-2">
               <FileCode size={12} className="text-ide-accent" />
               <span className="text-ide-text-bright font-semibold">
@@ -610,7 +610,7 @@ Explain the root cause and provide the corrected code.`
           {/* Code Editor Body */}
           <div className="flex-1 flex overflow-hidden relative">
             {/* Line numbers column */}
-            <div className="w-12 py-3 bg-[#080d1c] select-none border-r border-ide-border/40 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
+            <div className="w-12 py-3 bg-ide-sidebar select-none border-r border-ide-border/40 text-right pr-3 text-ide-text/30 font-mono overflow-hidden shrink-0">
               {lines.map((_, idx) => (
                 <div
                   key={idx}
@@ -657,16 +657,16 @@ Explain the root cause and provide the corrected code.`
                 onChange={(e) => setStdin(e.target.value)}
                 placeholder="Enter input values for your program (one per line or space-separated)..."
                 rows={2}
-                className="w-full bg-[#080d1c] border border-ide-border rounded-lg p-2 text-xs text-ide-text-bright font-mono outline-none focus:border-ide-accent resize-none placeholder-ide-text/30"
+                className="w-full bg-ide-sidebar border border-ide-border rounded-lg p-2 text-xs text-ide-text-bright font-mono outline-none focus:border-ide-accent resize-none placeholder-ide-text/30"
               />
             </div>
           )}
         </div>
 
         {/* Right / Bottom: Execution Results & Compiler Console */}
-        <div className="w-full md:w-[420px] lg:w-[480px] flex flex-col bg-[#070b16] border-t md:border-t-0 border-ide-border overflow-hidden shrink-0">
+        <div className="w-full md:w-[420px] lg:w-[480px] flex flex-col bg-ide-panel border-t md:border-t-0 border-ide-border overflow-hidden shrink-0">
           {/* Console Header */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-[#090d1c] border-b border-ide-border shrink-0">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-ide-sidebar border-b border-ide-border shrink-0">
             <div className="flex items-center gap-2">
               <TerminalIcon size={13} className="text-emerald-400" />
               <span className="font-semibold text-ide-text-bright text-[11px]">

@@ -123,7 +123,7 @@ export default function WelcomeScreen() {
   }
 
   return (
-    <div className="flex-1 h-full bg-[#0b1021] overflow-y-auto font-sans text-ide-text select-none p-8 md:p-14">
+    <div className="flex-1 h-full bg-ide-bg overflow-y-auto font-sans text-ide-text select-none p-8 md:p-14">
       {/* VS Code Quick Input Modal */}
       {showNewFileInput && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-20">
@@ -177,10 +177,10 @@ export default function WelcomeScreen() {
       <div className="max-w-4xl mx-auto space-y-10">
         {/* VS Code Title Header */}
         <div className="space-y-1">
-          <h1 className="text-3xl font-light text-ide-text-bright tracking-tight">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-ide-text-bright via-emerald-300 to-ide-accent bg-clip-text text-transparent tracking-tight">
             DevSphere Code
           </h1>
-          <p className="text-sm text-ide-text/50">Editing evolved</p>
+          <p className="text-sm text-ide-text/60">Editing evolved</p>
         </div>
 
         {/* 2-Column VS Code Layout: Start & Recent (Left) + Languages & Shortcuts (Right) */}
@@ -324,7 +324,7 @@ export default function WelcomeScreen() {
                 </div>
                 <div className="flex items-center justify-between py-1 px-2 rounded bg-ide-panel/40 border border-ide-border/40">
                   <span>Create New File Prompt</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-ide-bg border border-ide-border text-[10px] font-mono text-ide-purple">
+                  <kbd className="px-1.5 py-0.5 rounded bg-ide-bg border border-ide-border text-[10px] font-mono text-ide-cyan">
                     Ctrl + Alt + N
                   </kbd>
                 </div>
