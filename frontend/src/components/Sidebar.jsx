@@ -3,7 +3,8 @@ import useStore from '../store/useStore'
 import {
   ChevronDown, ChevronRight, Folder, FolderOpen, FolderClosed,
   FileCode, Settings, Plus, RefreshCw, Loader2, GitBranch,
-  GitCommit, AlertCircle, Check, Minimize2, ExternalLink
+  GitCommit, AlertCircle, Check, Minimize2, ExternalLink,
+  Link2, Unlink, Github
 } from 'lucide-react'
 import { githubAPI } from '../services/api'
 
@@ -371,18 +372,79 @@ export default function Sidebar() {
   const [importing, setImporting] = useState(false)
   const [showRepoMenu, setShowRepoMenu] = useState(false)
   const [newFileName, setNewFileName] = useState('')
+  const [linkedUser, setLinkedUser] = useState(() => {
+    if (localStorage.getItem('devsphere_github_unlinked') === 'true') return null
+    return localStorage.getItem('devsphere_github_user') || 'karansinhpatil11'
+  })
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [githubUserInput, setGithubUserInput] = useState('')
+  const [isLinkingAccount, setIsLinkingAccount] = useState(false)
+  const [linkError, setLinkError] = useState('')
 
   const fetchRepos = async () => {
+    if (localStorage.getItem('devsphere_github_unlinked') === 'true') {
+      setRemoteRepos([])
+      setLinkedUser(null)
+      return
+    }
+    const currentLinked = localStorage.getItem('devsphere_github_user') || 'karansinhpatil11'
     setLoadingRepos(true)
     setRepoError('')
     try {
+      if (currentLinked !== 'karansinhpatil11') {
+        const res = await fetch(`https://api.github.com/users/${encodeURIComponent(currentLinked)}/repos?sort=updated&per_page=30`)
+        if (res.ok) {
+          const data = await res.json()
+          setRemoteRepos(data)
+          setLinkedUser(currentLinked)
+          return
+        }
+      }
       const res = await githubAPI.getRepositories()
       setRemoteRepos(res.data)
+      setLinkedUser(currentLinked)
     } catch (e) {
       // Not configured — just show local repos
       setRepoError(e.response?.data?.error || '')
     } finally {
       setLoadingRepos(false)
+    }
+  }
+
+  const handleLinkGithubAccount = async (e) => {
+    e?.preventDefault?.()
+    const targetUser = githubUserInput.trim()
+    if (!targetUser) return
+    setIsLinkingAccount(true)
+    setLinkError('')
+    try {
+      const res = await fetch(`https://api.github.com/users/${encodeURIComponent(targetUser)}/repos?sort=updated&per_page=30`)
+      if (!res.ok) {
+        throw new Error(`GitHub user "${targetUser}" not found (${res.status})`)
+      }
+      const data = await res.json()
+      setRemoteRepos(data)
+      setLinkedUser(targetUser)
+      localStorage.setItem('devsphere_github_user', targetUser)
+      localStorage.removeItem('devsphere_github_unlinked')
+      setShowLinkModal(false)
+      setGithubUserInput('')
+      if (data.length > 0) {
+        setActiveRepoName(data[0].name)
+      }
+    } catch (err) {
+      setLinkError(err.message || 'Failed to link GitHub account')
+    } finally {
+      setIsLinkingAccount(false)
+    }
+  }
+
+  const handleRemoveGithubAccount = () => {
+    if (window.confirm('Are you sure you want to remove the current GitHub account?')) {
+      setLinkedUser(null)
+      setRemoteRepos([])
+      localStorage.removeItem('devsphere_github_user')
+      localStorage.setItem('devsphere_github_unlinked', 'true')
     }
   }
 
@@ -566,6 +628,99 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+
+      {/* GitHub Account Management Card with Link & Remove Buttons */}
+      <div className="p-2 mx-2 my-2 bg-ide-panel/85 border border-ide-border rounded-xl space-y-2 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Github size={13} className="text-ide-accent shrink-0" />
+            <div className="truncate">
+              <span className="text-[9px] text-ide-text/40 block leading-tight uppercase font-semibold">GitHub Account</span>
+              <span className="text-xs font-semibold text-ide-text-bright truncate block">
+                {linkedUser ? `@${linkedUser}` : 'Not Connected'}
+              </span>
+            </div>
+          </div>
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              linkedUser
+                ? 'bg-ide-accent shadow-[0_0_8px_rgba(0,255,136,0.8)]'
+                : 'bg-red-500/60'
+            }`}
+            title={linkedUser ? 'Connected' : 'Disconnected'}
+          />
+        </div>
+
+        {/* The Two Requested Action Buttons */}
+        <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setShowLinkModal(true)
+              setGithubUserInput(linkedUser || '')
+            }}
+            title="Link a GitHub account"
+            className="flex items-center justify-center gap-1 px-2 py-1.5 bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent border border-ide-accent/30 rounded-lg text-[10px] font-semibold transition-all cursor-pointer shadow-[0_0_8px_rgba(0,255,136,0.15)]"
+          >
+            <Link2 size={11} />
+            <span>Link Account</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveGithubAccount}
+            disabled={!linkedUser}
+            title="Remove current GitHub account"
+            className="flex items-center justify-center gap-1 px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Unlink size={11} />
+            <span>Remove</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Link Account Inline Input Form */}
+      {showLinkModal && (
+        <form onSubmit={handleLinkGithubAccount} className="p-2.5 mx-2 mb-2 bg-ide-bg border border-ide-accent/50 rounded-xl flex flex-col gap-2 shrink-0 slide-in">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-ide-accent font-semibold flex items-center gap-1">
+              <Github size={12} /> Link GitHub Account
+            </span>
+            <button
+              type="button"
+              onClick={() => { setShowLinkModal(false); setLinkError('') }}
+              className="text-ide-text/50 hover:text-ide-text text-[10px] cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+          <input
+            type="text"
+            placeholder="GitHub username (e.g. octocat)"
+            value={githubUserInput}
+            onChange={(e) => setGithubUserInput(e.target.value)}
+            className="w-full bg-ide-panel border border-ide-border rounded-lg px-2.5 py-1.5 text-xs text-ide-text-bright placeholder-ide-text/40 outline-none focus:border-ide-accent font-mono"
+            autoFocus
+          />
+          {linkError && <span className="text-[10px] text-rose-400 leading-tight">{linkError}</span>}
+          <div className="flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setShowLinkModal(false); setLinkError('') }}
+              className="px-2.5 py-1 text-[10px] text-ide-text/60 hover:text-ide-text cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLinkingAccount || !githubUserInput.trim()}
+              className="px-3 py-1 text-[10px] bg-ide-accent hover:bg-ide-accent-hover text-black font-bold rounded-lg cursor-pointer disabled:opacity-50 flex items-center gap-1"
+            >
+              {isLinkingAccount ? <Loader2 size={10} className="animate-spin" /> : <Link2 size={10} />}
+              <span>{isLinkingAccount ? 'Linking...' : 'Connect'}</span>
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Import Repo inline input */}
       {showImportModal && (

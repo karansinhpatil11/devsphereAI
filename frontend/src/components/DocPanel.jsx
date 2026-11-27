@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { docAPI, generateDocs } from '../services/api'
-import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft, Sparkles, Loader2, Trash2 } from 'lucide-react'
+import { BookOpen, Search, Plus, FileText, ChevronRight, ArrowLeft, Sparkles, Loader2, Trash2, CheckSquare } from 'lucide-react'
 
 export default function DocPanel() {
   const [docs, setDocs] = useState([])
@@ -13,6 +13,8 @@ export default function DocPanel() {
   const [newTitle, setNewTitle] = useState('')
   const [newCategory, setNewCategory] = useState('General')
   const [newContent, setNewContent] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false)
 
   const fetchDocs = async (query = '') => {
     setLoading(true)
@@ -32,11 +34,45 @@ export default function DocPanel() {
     try {
       await docAPI.deleteDoc(id)
       setDocs((prev) => prev.filter((d) => d.id !== id))
+      setSelectedIds((prev) => prev.filter((item) => item !== id))
       if (selectedDoc && selectedDoc.id === id) {
         setSelectedDoc(null)
       }
     } catch (err) {
       console.error('Failed to delete doc:', err)
+    }
+  }
+
+  const handleToggleSelect = (id, e) => {
+    e.stopPropagation()
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleSelectAllToggle = () => {
+    if (selectedIds.length === docs.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(docs.map((d) => d.id))
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return
+    if (!window.confirm(`Delete ${selectedIds.length} selected document(s)?`)) return
+    setIsDeletingBatch(true)
+    try {
+      await Promise.all(selectedIds.map((id) => docAPI.deleteDoc(id)))
+      setDocs((prev) => prev.filter((d) => !selectedIds.includes(d.id)))
+      if (selectedDoc && selectedIds.includes(selectedDoc.id)) {
+        setSelectedDoc(null)
+      }
+      setSelectedIds([])
+    } catch (err) {
+      console.error('Failed to delete docs:', err)
+    } finally {
+      setIsDeletingBatch(false)
     }
   }
 
@@ -143,6 +179,20 @@ export default function DocPanel() {
             Documentation ({docs.length})
           </span>
           <div className="flex items-center gap-1.5 relative">
+            {docs.length > 0 && (
+              <button
+                onClick={handleSelectAllToggle}
+                title="Select / Multi-select Documents"
+                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                  selectedIds.length > 0
+                    ? 'bg-ide-accent/20 border-ide-accent text-ide-accent font-semibold'
+                    : 'border-ide-border text-ide-text hover:text-ide-text-bright'
+                }`}
+              >
+                <CheckSquare size={11} />
+                <span>{selectedIds.length > 0 ? `${selectedIds.length} Sel` : 'Select'}</span>
+              </button>
+            )}
             <button
               onClick={() => setShowAiMenu(!showAiMenu)}
               disabled={generatingAi}
@@ -207,6 +257,37 @@ export default function DocPanel() {
         </div>
       </div>
 
+      {/* Multi-Selection Batch Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-ide-panel border-b border-ide-accent/30 shrink-0 text-xs slide-in">
+          <label className="flex items-center gap-2 cursor-pointer text-ide-text-bright text-[11px] font-medium">
+            <input
+              type="checkbox"
+              checked={docs.length > 0 && selectedIds.length === docs.length}
+              onChange={handleSelectAllToggle}
+              className="w-3.5 h-3.5 rounded accent-ide-accent cursor-pointer"
+            />
+            <span>{selectedIds.length} Selected</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-[10px] text-ide-text/50 hover:text-ide-text cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBatchDelete}
+              disabled={isDeletingBatch}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 transition-colors cursor-pointer shadow-sm"
+            >
+              <Trash2 size={11} />
+              <span>Delete ({selectedIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* New Doc Form */}
       {showCreate && (
         <form onSubmit={handleCreate} className="p-3 bg-ide-bg border-b border-ide-border flex flex-col gap-2 shrink-0">
@@ -259,31 +340,46 @@ export default function DocPanel() {
             <p>No documentation found</p>
           </div>
         )}
-        {docs.map((doc) => (
-          <div
-            key={doc.id}
-            onClick={() => setSelectedDoc(doc)}
-            className="p-2.5 rounded-xl bg-ide-panel border border-ide-border hover:border-ide-accent/40 transition-all cursor-pointer group flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
-              <FileText size={14} className="text-ide-accent shrink-0" />
-              <div className="min-w-0">
-                <p className="font-medium text-xs text-ide-text-bright truncate">{doc.title}</p>
-                <p className="text-[10px] text-ide-text/40">{doc.category}</p>
+        {docs.map((doc) => {
+          const isSelected = selectedIds.includes(doc.id)
+          return (
+            <div
+              key={doc.id}
+              onClick={() => setSelectedDoc(doc)}
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer group flex items-center justify-between ${
+                isSelected
+                  ? 'bg-ide-accent/15 border-ide-accent shadow-[0_0_8px_rgba(0,255,136,0.15)]'
+                  : 'bg-ide-panel border-ide-border hover:border-ide-accent/40'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => handleToggleSelect(doc.id, e)}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Select doc"
+                  className="w-3.5 h-3.5 rounded accent-ide-accent cursor-pointer shrink-0"
+                />
+                <FileText size={14} className="text-ide-accent shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium text-xs text-ide-text-bright truncate">{doc.title}</p>
+                  <p className="text-[10px] text-ide-text/40">{doc.category}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={(e) => handleDeleteDoc(doc.id, e)}
+                  title="Delete Document"
+                  className="p-1 rounded text-ide-text/30 hover:text-rose-400 hover:bg-rose-500/15 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                </button>
+                <ChevronRight size={13} className="text-ide-text/30 group-hover:text-ide-accent transition-colors shrink-0" />
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={(e) => handleDeleteDoc(doc.id, e)}
-                title="Delete Document"
-                className="p-1 rounded text-ide-text/30 hover:text-rose-400 hover:bg-rose-500/15 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-              >
-                <Trash2 size={13} />
-              </button>
-              <ChevronRight size={13} className="text-ide-text/30 group-hover:text-ide-accent transition-colors shrink-0" />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -1483,33 +1483,6 @@ export default function AIAssistant() {
         {/* ── MODE 0: INTERACTIVE CHAT ── */}
         {activeMode === 'chat' && (
           <div className="space-y-3 slide-in">
-            {chatMessages.length === 0 && (
-              <div className="p-4 bg-ide-bg rounded-xl border border-ide-border text-center space-y-2">
-                <Bot size={24} className="text-ide-accent mx-auto" />
-                <h4 className="text-xs font-semibold text-ide-text-bright">Autonomous Gemini Assistant</h4>
-                <p className="text-[11px] text-ide-text/60 leading-relaxed">
-                  Ask me to create files in any language, commit & push to GitHub, find bugs, or explain code.
-                </p>
-                <div className="flex flex-col gap-1.5 pt-2 text-[10px]">
-                  {[
-                    'Create a file app.js',
-                    'Commit workspace changes to GitHub',
-                    `Find and fix bugs in ${activeFile.name}`,
-                    'Create a python script server.py',
-                    'Review PR #452 and check diff',
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      onClick={() => handleSend(preset)}
-                      className="text-left px-2.5 py-1.5 bg-ide-panel hover:bg-ide-border text-ide-text hover:text-ide-text-bright rounded-lg border border-ide-border/60 transition-colors cursor-pointer truncate"
-                    >
-                      💡 {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {chatMessages.map((msg) => (
               <ChatMessage key={msg.id || Math.random()} message={msg} onApplyCode={handleApplyCode} />
             ))}

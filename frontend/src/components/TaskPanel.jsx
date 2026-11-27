@@ -10,6 +10,8 @@ export default function TaskPanel() {
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newPriority, setNewPriority] = useState('medium')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false)
 
   const fetchTasks = async () => {
     setLoading(true)
@@ -80,8 +82,39 @@ export default function TaskPanel() {
     try {
       await taskAPI.deleteTask(id)
       setTasks(tasks.filter((t) => t.id !== id))
+      setSelectedIds((prev) => prev.filter((item) => item !== id))
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const handleToggleSelect = (id, e) => {
+    e.stopPropagation()
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleSelectAllToggle = () => {
+    if (selectedIds.length === tasks.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(tasks.map((t) => t.id))
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return
+    if (!window.confirm(`Delete ${selectedIds.length} selected task(s)?`)) return
+    setIsDeletingBatch(true)
+    try {
+      await Promise.all(selectedIds.map((id) => taskAPI.deleteTask(id)))
+      setTasks((prev) => prev.filter((t) => !selectedIds.includes(t.id)))
+      setSelectedIds([])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsDeletingBatch(false)
     }
   }
 
@@ -92,25 +125,70 @@ export default function TaskPanel() {
         <span className="text-[10px] text-ide-text/40 font-semibold uppercase tracking-wider">
           Task Tracker ({tasks.length})
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {tasks.length > 0 && (
+            <button
+              onClick={handleSelectAllToggle}
+              title="Select / Multi-select Tasks"
+              className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                selectedIds.length > 0
+                  ? 'bg-ide-accent/20 border-ide-accent text-ide-accent font-semibold'
+                  : 'border-ide-border text-ide-text hover:text-ide-text-bright'
+              }`}
+            >
+              <CheckSquare size={11} />
+              <span>{selectedIds.length > 0 ? `${selectedIds.length} Sel` : 'Select'}</span>
+            </button>
+          )}
           <button
             onClick={handleAIPlan}
             disabled={isPlanning}
             title="Auto-plan tasks using Gemini AI"
-            className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-ide-accent/15 border border-ide-accent/30 text-ide-accent hover:bg-ide-accent/25 transition-colors cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-ide-accent/15 border border-ide-accent/30 text-ide-accent hover:bg-ide-accent/25 transition-colors cursor-pointer disabled:opacity-50"
           >
             <Sparkles size={11} className={isPlanning ? 'animate-spin' : ''} />
-            <span>{isPlanning ? 'Planning...' : '✨ AI Plan'}</span>
+            <span>{isPlanning ? 'Planning...' : '✨ Plan'}</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1 text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-[10px] text-ide-accent hover:text-ide-accent-hover transition-colors cursor-pointer"
           >
-            <Plus size={13} />
-            <span>New Task</span>
+            <Plus size={12} />
+            <span>New</span>
           </button>
         </div>
       </div>
+
+      {/* Multi-Selection Batch Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-ide-panel border-b border-ide-accent/30 shrink-0 text-xs slide-in">
+          <label className="flex items-center gap-2 cursor-pointer text-ide-text-bright text-[11px] font-medium">
+            <input
+              type="checkbox"
+              checked={tasks.length > 0 && selectedIds.length === tasks.length}
+              onChange={handleSelectAllToggle}
+              className="w-3.5 h-3.5 rounded accent-ide-accent cursor-pointer"
+            />
+            <span>{selectedIds.length} Selected</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-[10px] text-ide-text/50 hover:text-ide-text cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBatchDelete}
+              disabled={isDeletingBatch}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 transition-colors cursor-pointer shadow-sm"
+            >
+              <Trash2 size={11} />
+              <span>Delete ({selectedIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* New Task Form Modal */}
       {showAddModal && (
@@ -170,17 +248,28 @@ export default function TaskPanel() {
         )}
         {tasks.map((task) => {
           const isDone = task.status === 'done'
+          const isSelected = selectedIds.includes(task.id)
           return (
             <div
               key={task.id}
               onClick={() => handleToggleStatus(task)}
               className={`p-2.5 rounded-xl border transition-all cursor-pointer group flex flex-col gap-1.5 ${
-                isDone
+                isSelected
+                  ? 'bg-ide-accent/15 border-ide-accent shadow-[0_0_8px_rgba(0,255,136,0.15)]'
+                  : isDone
                   ? 'bg-ide-bg/50 border-ide-border/40 opacity-60'
                   : 'bg-ide-panel border-ide-border hover:border-ide-accent/40 shadow-sm'
               }`}
             >
               <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => handleToggleSelect(task.id, e)}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Select task"
+                  className="mt-1 w-3.5 h-3.5 rounded accent-ide-accent cursor-pointer shrink-0"
+                />
                 <button
                   type="button"
                   className="mt-0.5 text-ide-text/40 group-hover:text-ide-accent transition-colors shrink-0"
